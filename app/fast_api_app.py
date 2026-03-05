@@ -369,11 +369,17 @@ async def generate_video_feedback(
         )
 
         # Use the Gemini API (API key) for 3.x models — not available on Vertex AI yet
+        # IMPORTANT: agent.py sets GOOGLE_GENAI_USE_VERTEXAI=True globally, which
+        # makes genai.Client route to Vertex AI even with api_key=. We must
+        # explicitly force the Google AI endpoint via http_options.
         gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
         if not gemini_api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required for feedback analysis")
 
-        client = genai.Client(api_key=gemini_api_key)
+        client = genai.Client(
+            api_key=gemini_api_key,
+            http_options={"api_version": "v1beta", "url": "https://generativelanguage.googleapis.com"},
+        )
 
         # Always use inline bytes (GCS URIs only work with Vertex AI)
         video_part = genai.types.Part.from_bytes(

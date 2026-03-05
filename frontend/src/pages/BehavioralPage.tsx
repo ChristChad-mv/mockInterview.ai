@@ -4,7 +4,7 @@
  * Shows the question, STAR framework, and a conversation visualizer.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LiveAPIProvider, useLiveAPIContext } from '../contexts/LiveAPIContext';
 import { AudioRecorder } from '../utils/audio-recorder';
@@ -13,6 +13,8 @@ import { FeedbackReport, FeedbackData } from '../components/feedback/FeedbackRep
 import { useTabRecorder } from '../hooks/use-tab-recorder';
 import { fetchAIFeedback } from '../utils/feedback-api';
 import { addRecord } from '../utils/interview-history';
+import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
+import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
 import {
   behavioralQuestions,
   BehavioralQuestion,
@@ -60,6 +62,7 @@ function BehavioralSession() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
+  const [interviewStarted, setInterviewStarted] = useState(false);
 
   const [audioRecorder] = useState(() => new AudioRecorder());
   const { startRecording, stopRecording } = useTabRecorder();
@@ -92,24 +95,54 @@ function BehavioralSession() {
   }, [sessionStartTime]);
 
   // ── Connect / Disconnect ──
-  const handleConnect = useCallback(async () => {
+  const hasInitializedRef = useRef(false);
+
+  const handleStartWithConfig = useCallback(async (config: InterviewConfig) => {
     setIsConnecting(true);
     try {
+      // 1) Screen share prompt FIRST — user must accept before AI starts
+      const recordingOk = await startRecording();
+      if (!recordingOk) {
+        console.warn('Screen share denied — interview not started');
+        setIsConnecting(false);
+        return;
+      }
+
+      // 2) Now connect to the AI agent (waits for setupComplete)
+      setInterviewStarted(true);
       await connect();
       setSessionStartTime(Date.now());
       setConversationLog([]);
-      startRecording().catch((e) => console.warn('Tab recording not available:', e));
+
+      // 3) Send EVERYTHING before the agent speaks
+      const configMsg = buildSessionConfigMessage(config);
+      const questionContext = `[BEHAVIORAL INTERVIEW — SESSION START]
+The candidate is practicing: "${selectedQuestion.title}" (${selectedQuestion.category}).
+
+Question: ${selectedQuestion.description}
+
+Possible follow-ups to ask later:
+${selectedQuestion.followUps.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+
+You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, and ask them to answer using the STAR method. Be warm and encouraging.`;
+
+      const fullContext = [configMsg, questionContext].filter(Boolean).join('\n\n');
+      client.send([{ text: fullContext }]);
+
+      hasInitializedRef.current = true;
     } catch (e) {
       console.error('Connection failed:', e);
+      setInterviewStarted(false);
     } finally {
       setIsConnecting(false);
     }
-  }, [connect, startRecording]);
+  }, [connect, client, startRecording, selectedQuestion]);
 
   const handleDisconnect = useCallback(async () => {
     await disconnect();
     audioRecorder.stop();
     setIsMicActive(true);
+    setInterviewStarted(false);
 
     const duration = sessionStartTime
       ? `${Math.floor((Date.now() - sessionStartTime) / 60000)} min`
@@ -198,9 +231,10 @@ function BehavioralSession() {
     };
   }, [client]);
 
-  // ── Notify AI when question changes ──
+  // ── Notify AI when question changes (mid-session only, not initial) ──
+  const prevQuestionRef = useRef(selectedQuestion.id);
   useEffect(() => {
-    if (connected) {
+    if (connected && prevQuestionRef.current !== selectedQuestion.id) {
       client.send([
         {
           text: `[BEHAVIORAL INTERVIEW MODE — QUESTION CHANGED]
@@ -215,12 +249,41 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
         },
       ]);
     }
+    prevQuestionRef.current = selectedQuestion.id;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedQuestion]);
 
   const handleToggleMic = useCallback(() => {
     setIsMicActive((prev) => !prev);
   }, []);
+
+  if (!interviewStarted && !connected) {
+    return (
+      <div className="flex h-screen w-full flex-col bg-[#0f1115] text-white">
+        <header className="flex h-14 items-center border-b border-white/10 bg-[#161b22] px-4 shrink-0">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            <span className="text-xs font-medium">Back</span>
+          </button>
+          <div className="h-5 w-px bg-white/10 mx-3" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-600">
+            <MessageSquare size={16} />
+          </div>
+          <h1 className="text-sm font-bold tracking-tight ml-2">MockInterview.ai</h1>
+        </header>
+        <PreInterviewSetup
+          problemTitle={selectedQuestion.title}
+          mode="behavioral"
+          accentColor="green-500"
+          isConnecting={isConnecting}
+          onStart={handleStartWithConfig}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -454,7 +517,7 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={handleConnect}
+                onClick={() => handleStartWithConfig(getSavedConfig())}
                 className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white shadow-lg shadow-green-500/20 hover:bg-green-500 cursor-pointer"
               >
                 <Play size={20} fill="currentColor" />

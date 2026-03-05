@@ -19,8 +19,8 @@ import { Code2, Mic, ArrowLeft } from "lucide-react";
 import { FeedbackReport, FeedbackData } from "../components/feedback/FeedbackReport";
 import { useTabRecorder } from "../hooks/use-tab-recorder";
 import { fetchAIFeedback } from "../utils/feedback-api";
-import { addRecord } from "../utils/interview-history";
-
+import { addRecord } from "../utils/interview-history";import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
+import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
 // WebSocket URL: in production, same host. In dev, connect to backend on :8000.
 const isDevelopment = window.location.port === "3000";
 const defaultHost = isDevelopment
@@ -56,6 +56,7 @@ function InterviewSession() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
+  const [interviewStarted, setInterviewStarted] = useState(false);
 
   const editorRef = useRef<CodeEditorHandle>(null);
   const [audioRecorder] = useState(() => new AudioRecorder());
@@ -74,25 +75,59 @@ function InterviewSession() {
   }, [problemId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Connect / Disconnect handlers ──
-  const handleConnect = useCallback(async () => {
+  const hasInitializedRef = useRef(false);
+
+  const handleStartWithConfig = useCallback(async (config: InterviewConfig) => {
     setIsConnecting(true);
     try {
+      // 1) Screen share prompt FIRST — user must accept before AI starts
+      const recordingOk = await startRecording();
+      if (!recordingOk) {
+        console.warn('Screen share denied — interview not started');
+        setIsConnecting(false);
+        return;
+      }
+
+      // 2) Now connect to the AI agent (waits for setupComplete)
+      setInterviewStarted(true);
       await connect();
       setSessionStartTime(Date.now());
-      // Start recording the tab for post-interview AI analysis
-      startRecording().catch((e) => console.warn('Tab recording not available:', e));
+
+      // 3) Send EVERYTHING the agent needs before it speaks:
+      //    config + problem context + first vision frame — all at once
+      const configMsg = buildSessionConfigMessage(config);
+      const problemContext = `[CODING INTERVIEW — SESSION START]
+The candidate is working on: "${selectedProblem.title}" (${selectedProblem.difficulty}) using ${language.charAt(0).toUpperCase() + language.slice(1)}.
+
+Description: ${selectedProblem.description}
+
+Greet the candidate, confirm the problem, and ask them to explain their approach before coding.`;
+
+      const fullContext = [configMsg, problemContext].filter(Boolean).join('\n\n');
+      client.send([{ text: fullContext }]);
+
+      // Send first vision frame immediately so the agent can see the screen
+      const snapshot = editorRef.current?.captureSnapshot();
+      if (snapshot) {
+        const data = snapshot.slice(snapshot.indexOf(',') + 1);
+        client.sendRealtimeInput([{ mimeType: 'image/jpeg', data }]);
+      }
+
+      hasInitializedRef.current = true;
     } catch (e) {
       console.error("Connection failed:", e);
+      setInterviewStarted(false);
     } finally {
       setIsConnecting(false);
     }
-  }, [connect, startRecording]);
+  }, [connect, client, startRecording, selectedProblem, language]);
 
   const handleDisconnect = useCallback(async () => {
     await disconnect();
     audioRecorder.stop();
     setIsMicActive(true);
     setIsVisionActive(false);
+    setInterviewStarted(false);
     if (visionIntervalRef.current) {
       clearInterval(visionIntervalRef.current);
       visionIntervalRef.current = null;
@@ -203,15 +238,17 @@ function InterviewSession() {
     }
   }, [connected]);
 
-  // ── Notify AI when problem changes ──
+  // ── Notify AI when problem changes (mid-session only, not initial) ──
+  const prevProblemRef = useRef(selectedProblem.id);
   useEffect(() => {
-    if (connected) {
+    if (connected && prevProblemRef.current !== selectedProblem.id) {
       client.send([
         {
           text: `[PROBLEM CHANGED] The candidate switched to: "${selectedProblem.title}" (${selectedProblem.difficulty}) using ${language.charAt(0).toUpperCase() + language.slice(1)}. Description: ${selectedProblem.description}. Please ask them to explain their approach.`,
         },
       ]);
     }
+    prevProblemRef.current = selectedProblem.id;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProblem]);
 
@@ -222,6 +259,34 @@ function InterviewSession() {
   const handleToggleVision = useCallback(() => {
     setIsVisionActive((prev) => !prev);
   }, []);
+
+  if (!interviewStarted && !connected) {
+    return (
+      <div className="flex h-screen w-full flex-col bg-[#0f1115] text-white">
+        <header className="flex h-14 items-center border-b border-white/10 bg-[#161b22] px-4 shrink-0">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            <span className="text-xs font-medium">Back</span>
+          </button>
+          <div className="h-5 w-px bg-white/10 mx-3" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600">
+            <Code2 size={16} />
+          </div>
+          <h1 className="text-sm font-bold tracking-tight ml-2">MockInterview.ai</h1>
+        </header>
+        <PreInterviewSetup
+          problemTitle={selectedProblem.title}
+          mode="coding"
+          accentColor="blue-500"
+          isConnecting={isConnecting}
+          onStart={handleStartWithConfig}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -397,7 +462,7 @@ function InterviewSession() {
           isConnecting={isConnecting}
           isMicActive={isMicActive}
           isVisionActive={isVisionActive}
-          onConnect={handleConnect}
+          onConnect={() => handleStartWithConfig(getSavedConfig())}
           onDisconnect={handleDisconnect}
           onToggleMic={handleToggleMic}
           onToggleVision={handleToggleVision}

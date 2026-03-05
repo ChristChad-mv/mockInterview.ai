@@ -103,10 +103,19 @@ export function useLiveAPI({
   const connect = useCallback(async () => {
     client.disconnect();
     await client.connect();
-    // Don't set connected here - wait for setupcomplete event
+    // Wait for setupcomplete before resolving — so callers know the session is ready
+    await new Promise<void>((resolve) => {
+      const onReady = () => {
+        client.off("setupcomplete", onReady);
+        resolve();
+      };
+      client.on("setupcomplete", onReady);
+    });
   }, [client]);
 
   const disconnect = useCallback(async () => {
+    // Stop audio playback FIRST so the agent voice cuts immediately
+    audioStreamerRef.current?.stop();
     client.disconnect();
     setConnected(false);
   }, [setConnected, client]);
