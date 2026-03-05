@@ -264,8 +264,12 @@ def get_connect_and_run_callable(websocket: WebSocket) -> Callable:
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle new websocket connections."""
     await websocket.accept()
+    logging.info("🎙️  New interview session connected")
     connect_and_run = get_connect_and_run_callable(websocket)
-    await connect_and_run()
+    try:
+        await connect_and_run()
+    finally:
+        logging.info("🎙️  Interview session disconnected")
 
 
 # ── Video-based AI Feedback ──
@@ -353,8 +357,13 @@ async def generate_video_feedback(
             mime_type="video/webm",
         )
 
+        feedback_model = "gemini-3.1-flash-lite-preview"
+        logging.info(f"🧠 Sending {video_size_mb:.1f}MB video to {feedback_model} for analysis...")
+        import time as _time
+        t0 = _time.time()
+
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite-preview",
+            model=feedback_model,
             contents=[
                 genai.types.Content(
                     parts=[video_part, genai.types.Part.from_text(text=prompt)]
@@ -366,6 +375,9 @@ async def generate_video_feedback(
             ),
         )
 
+        elapsed = _time.time() - t0
+        logging.info(f"✅ Gemini responded in {elapsed:.1f}s")
+
         # Parse the JSON response
         feedback_json = json.loads(response.text)
 
@@ -374,8 +386,13 @@ async def generate_video_feedback(
         feedback_json["problemTitle"] = problem_title
         feedback_json["duration"] = duration
 
+        # Log detailed results for Cloud Logging
+        categories_summary = ", ".join(
+            f"{c['name']}={c['score']}/10" for c in feedback_json.get("categories", [])
+        )
         logging.info(
-            f"Generated AI feedback: overall={feedback_json.get('overallScore')}/10"
+            f"📊 Feedback for [{mode}] '{problem_title}': "
+            f"overall={feedback_json.get('overallScore')}/10 | {categories_summary}"
         )
         return feedback_json
 
