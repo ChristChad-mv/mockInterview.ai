@@ -9,6 +9,7 @@ import LandingPage from "./pages/LandingPage";
 // Lazy load heavy pages (tldraw alone is ~2MB)
 const CodingInterviewPage = lazy(() => import("./pages/CodingInterviewPage"));
 const SystemDesignPage = lazy(() => import("./pages/SystemDesignPage"));
+const BehavioralPage = lazy(() => import("./pages/BehavioralPage"));
 
 function PageLoader() {
   return (
@@ -29,8 +30,7 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/coding/:problemId" element={<CodingInterviewPage />} />
           <Route path="/system-design/:problemId" element={<SystemDesignPage />} />
-          {/* Future routes */}
-          {/* <Route path="/behavioral/:questionId" element={<BehavioralPage />} /> */}
+          <Route path="/behavioral/:questionId" element={<BehavioralPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -16,6 +16,7 @@ import { ControlBar } from "../components/interview/ControlBar";
 import { problems, Problem, LANGUAGES, Language } from "../data/problems";
 import { motion } from "motion/react";
 import { Code2, Mic, ArrowLeft } from "lucide-react";
+import { FeedbackReport, FeedbackData } from "../components/feedback/FeedbackReport";
 
 // WebSocket URL: in production, same host. In dev, connect to backend on :8000.
 const isDevelopment = window.location.port === "3000";
@@ -48,6 +49,9 @@ function InterviewSession() {
   const [isVisionActive, setIsVisionActive] = useState(false);
   const [inputTranscription, setInputTranscription] = useState("");
   const [outputTranscription, setOutputTranscription] = useState("");
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
 
   const editorRef = useRef<CodeEditorHandle>(null);
   const [audioRecorder] = useState(() => new AudioRecorder());
@@ -69,6 +73,7 @@ function InterviewSession() {
     setIsConnecting(true);
     try {
       await connect();
+      setSessionStartTime(Date.now());
     } catch (e) {
       console.error("Connection failed:", e);
     } finally {
@@ -85,7 +90,45 @@ function InterviewSession() {
       clearInterval(visionIntervalRef.current);
       visionIntervalRef.current = null;
     }
-  }, [disconnect, audioRecorder]);
+
+    const duration = sessionStartTime
+      ? `${Math.floor((Date.now() - sessionStartTime) / 60000)} min`
+      : '0 min';
+
+    const feedback: FeedbackData = {
+      overallScore: 7,
+      duration,
+      mode: 'coding',
+      problemTitle: selectedProblem.title,
+      categories: [
+        { name: 'Problem Understanding', score: 7, comment: 'Good initial analysis of the problem constraints.' },
+        { name: 'Approach & Algorithm', score: 7, comment: 'Solid approach. Consider discussing trade-offs between solutions.' },
+        { name: 'Code Quality', score: 6, comment: 'Clean code structure. Watch for edge cases and naming conventions.' },
+        { name: 'Communication', score: 8, comment: 'Great job thinking out loud and explaining your reasoning.' },
+        { name: 'Testing & Edge Cases', score: 6, comment: 'Remember to walk through test cases before submitting.' },
+      ],
+      strengths: [
+        'Communicated thought process clearly while coding',
+        'Good understanding of the problem requirements',
+        'Clean and readable code structure',
+      ],
+      improvements: [
+        'Discuss time and space complexity before and after coding',
+        'Consider more edge cases (empty input, single element, duplicates)',
+        'Practice optimizing from brute force to optimal solution',
+      ],
+      nextSteps: [
+        'Solve 2 more problems of similar difficulty',
+        'Practice explaining Big-O complexity for every solution',
+        'Review common patterns: sliding window, two pointers, hash maps',
+        'Time yourself — aim for 25 minutes per medium problem',
+      ],
+    };
+
+    setFeedbackData(feedback);
+    setShowFeedback(true);
+    setSessionStartTime(null);
+  }, [disconnect, audioRecorder, sessionStartTime, selectedProblem]);
 
   // ── Audio recording → send to backend via client ──
   useEffect(() => {
@@ -179,6 +222,7 @@ function InterviewSession() {
   }, []);
 
   return (
+    <>
     <div className="flex h-screen w-full flex-col bg-[#0f1115] text-white overflow-hidden">
       {/* Header */}
       <header className="flex h-14 items-center justify-between border-b border-white/10 bg-[#161b22] px-4 shrink-0">
@@ -358,6 +402,17 @@ function InterviewSession() {
         />
       </footer>
     </div>
+
+    {showFeedback && feedbackData && (
+      <FeedbackReport
+        feedback={feedbackData}
+        onClose={() => {
+          setShowFeedback(false);
+          setFeedbackData(null);
+        }}
+      />
+    )}
+    </>
   );
 }
 

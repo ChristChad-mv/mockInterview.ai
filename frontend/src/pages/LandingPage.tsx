@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { problems } from "../data/problems";
 import { systemDesignProblems } from "../data/systemDesignProblems";
+import { behavioralQuestions } from "../data/behavioralQuestions";
 
 const INTERVIEW_MODES = [
   {
@@ -37,11 +38,11 @@ const INTERVIEW_MODES = [
   {
     id: "behavioral",
     title: "Behavioral",
-    description: "Practice STAR method responses with AI feedback",
+    description: "Practice STAR method responses with real-time AI feedback and follow-ups",
     icon: MessageSquare,
     color: "green",
-    available: false,
-    problems: [],
+    available: true,
+    problems: behavioralQuestions,
   },
 ];
 
@@ -259,14 +260,16 @@ export default function LandingPage() {
                   </h3>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      problem.difficulty === "Easy"
-                        ? "bg-green-500/15 text-green-400"
-                        : problem.difficulty === "Medium"
-                          ? "bg-yellow-500/15 text-yellow-400"
-                          : "bg-red-500/15 text-red-400"
+                      'difficulty' in problem
+                        ? problem.difficulty === "Easy"
+                          ? "bg-green-500/15 text-green-400"
+                          : problem.difficulty === "Medium"
+                            ? "bg-yellow-500/15 text-yellow-400"
+                            : "bg-red-500/15 text-red-400"
+                        : "bg-purple-500/15 text-purple-400"
                     }`}
                   >
-                    {problem.difficulty}
+                    {'difficulty' in problem ? problem.difficulty : ('category' in problem ? (problem as any).category : '')}
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 line-clamp-2 mb-4">
