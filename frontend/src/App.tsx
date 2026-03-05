@@ -12,7 +12,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CodeEditor, CodeEditorHandle } from './components/CodeEditor';
 import { ProblemPane } from './components/ProblemPane';
 import { ControlBar } from './components/ControlBar';
-import { problems, Problem } from './data/problems';
+import { problems, Problem, LANGUAGES, Language } from './data/problems';
 import { useGeminiLive } from './hooks/useGeminiLive';
 import { motion } from 'motion/react';
 import { Code2, Mic } from 'lucide-react';
@@ -22,7 +22,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY as string;
 
 export default function App() {
   const [selectedProblem, setSelectedProblem] = useState<Problem>(problems[0]);
-  const [code, setCode] = useState<string>(problems[0].starterCode);
+  const [language, setLanguage] = useState<Language>('python');
+  const [code, setCode] = useState<string>(problems[0].starterCode['python']);
   const [overlayItems, setOverlayItems] = useState<AIOverlayItem[]>([]);
 
   const editorRef = useRef<CodeEditorHandle>(null);
@@ -115,7 +116,7 @@ export default function App() {
   }, []);
 
   // ── Build system context for the AI ──
-  const systemContext = `The candidate is solving: "${selectedProblem.title}" (${selectedProblem.difficulty})
+  const systemContext = `The candidate is solving: "${selectedProblem.title}" (${selectedProblem.difficulty}) in ${language.charAt(0).toUpperCase() + language.slice(1)}.
 
 Problem Description:
 ${selectedProblem.description}
@@ -163,7 +164,7 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
   useEffect(() => {
     if (isConnected) {
       sendText(
-        `[PROBLEM CHANGED] The candidate switched to: "${selectedProblem.title}" (${selectedProblem.difficulty}). Description: ${selectedProblem.description}. Please ask them to explain their approach.`
+        `[PROBLEM CHANGED] The candidate switched to: "${selectedProblem.title}" (${selectedProblem.difficulty}) using ${language.charAt(0).toUpperCase() + language.slice(1)}. Description: ${selectedProblem.description}. Please ask them to explain their approach.`
       );
       // Clear overlays on problem change
       setOverlayItems([]);
@@ -194,13 +195,29 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
               const p = problems.find((p) => p.id === e.target.value);
               if (p) {
                 setSelectedProblem(p);
-                setCode(p.starterCode);
+                setCode(p.starterCode[language]);
               }
             }}
           >
             {problems.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.title}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="rounded-lg border border-white/10 bg-[#0d1117] px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500 focus:outline-none"
+            value={language}
+            onChange={(e) => {
+              const newLang = e.target.value as Language;
+              setLanguage(newLang);
+              setCode(selectedProblem.starterCode[newLang]);
+            }}
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang.value} value={lang.value}>
+                {lang.label}
               </option>
             ))}
           </select>
@@ -242,7 +259,7 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
             ref={editorRef}
             code={code}
             onChange={(val) => setCode(val || '')}
-            language="javascript"
+            language={language}
             overlayItems={overlayItems}
             onDismissOverlay={handleDismissOverlay}
           />

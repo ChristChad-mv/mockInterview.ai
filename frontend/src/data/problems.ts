@@ -1,14 +1,22 @@
+export type Language = 'python' | 'javascript' | 'java';
+
+export const LANGUAGES: { value: Language; label: string }[] = [
+  { value: 'python', label: 'Python' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'java', label: 'Java' },
+];
+
 export interface Problem {
   id: string;
   title: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
   description: string;
-  examples:Array<{
+  examples: Array<{
     input: string;
     output: string;
     explanation?: string;
   }>;
-  starterCode: string;
+  starterCode: Record<Language, string>;
 }
 
 export const problems: Problem[] = [
@@ -32,10 +40,25 @@ You can return the answer in any order.`,
         output: '[1,2]',
       },
     ],
-    starterCode: `function twoSum(nums, target) {
+    starterCode: {
+      python: `class Solution:
+    def twoSum(self, nums: list[int], target: int) -> list[int]:
+        # Write your solution here
+        pass
+`,
+      javascript: `function twoSum(nums, target) {
   // Write your solution here
   
-}`,
+}
+`,
+      java: `class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
   },
   {
     id: 'reverse-linked-list',
@@ -52,7 +75,19 @@ You can return the answer in any order.`,
         output: '[2,1]',
       },
     ],
-    starterCode: `/**
+    starterCode: {
+      python: `# Definition for singly-linked list.
+# class ListNode:
+#     def __init__(self, val=0, next=None):
+#         self.val = val
+#         self.next = next
+
+class Solution:
+    def reverseList(self, head: 'ListNode | None') -> 'ListNode | None':
+        # Write your solution here
+        pass
+`,
+      javascript: `/**
  * Definition for singly-linked list.
  * function ListNode(val, next) {
  *     this.val = (val===undefined ? 0 : val)
@@ -65,7 +100,26 @@ You can return the answer in any order.`,
  */
 function reverseList(head) {
     
-};`,
+}
+`,
+      java: `/**
+ * Definition for singly-linked list.
+ * public class ListNode {
+ *     int val;
+ *     ListNode next;
+ *     ListNode() {}
+ *     ListNode(int val) { this.val = val; }
+ *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+ * }
+ */
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
   },
   {
     id: 'longest-substring',
@@ -84,12 +138,27 @@ function reverseList(head) {
         explanation: 'The answer is "b", with the length of 1.',
       },
     ],
-    starterCode: `/**
+    starterCode: {
+      python: `class Solution:
+    def lengthOfLongestSubstring(self, s: str) -> int:
+        # Write your solution here
+        pass
+`,
+      javascript: `/**
  * @param {string} s
  * @return {number}
  */
 function lengthOfLongestSubstring(s) {
     
-};`,
+}
+`,
+      java: `class Solution {
+    public int lengthOfLongestSubstring(String s) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
   },
 ];
