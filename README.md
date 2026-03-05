@@ -4,8 +4,6 @@
 
 An AI interviewer that talks to you, watches your code in real time, and gives feedback — just like a real interview at a top tech company. Built with [Google ADK](https://google.github.io/adk-docs/) + [Gemini Live](https://ai.google.dev/gemini-api/docs/live) native audio.
 
-> 🏆 Built for the [Gemini Live Agent Challenge](https://googleai.devpost.com/)
-
 https://github.com/user-attachments/assets/demo.mp4
 
 ---
