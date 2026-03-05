@@ -1,190 +1,175 @@
 /**
  * MockInterview.ai — Main Application
- * Architecture ported from project-genesis:
- * - Dual AudioContext (16kHz input / 24kHz output)
- * - Function calling (AI can annotate code, highlight regions, suggest approaches, rate progress)
- * - Vision toggle (periodic editor snapshots sent to Gemini)
- * - Typed audio utilities
- * - Proper separation of concerns
+ * Uses agent-starter-pack audio/WS infrastructure with our interview UI.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CodeEditor, CodeEditorHandle } from './components/CodeEditor';
-import { ProblemPane } from './components/ProblemPane';
-import { ControlBar } from './components/ControlBar';
-import { problems, Problem, LANGUAGES, Language } from './data/problems';
-import { useGeminiLive } from './hooks/useGeminiLive';
-import { motion } from 'motion/react';
-import { Code2, Mic } from 'lucide-react';
-import type { InterviewAction, AIOverlayItem } from './types/interview';
+import { useState, useEffect, useRef, useCallback } from "react";
+import "./App.scss";
+import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
+import { AudioRecorder } from "./utils/audio-recorder";
+import { CodeEditor, CodeEditorHandle } from "./components/interview/CodeEditor";
+import { ProblemPane } from "./components/interview/ProblemPane";
+import { ControlBar } from "./components/interview/ControlBar";
+import { problems, Problem, LANGUAGES, Language } from "./data/problems";
+import { motion } from "motion/react";
+import { Code2, Mic } from "lucide-react";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY as string;
+// WebSocket URL: in production, same host. In dev, connect to backend on :8000.
+const isDevelopment = window.location.port === "3000";
+const defaultHost = isDevelopment
+  ? `${window.location.hostname}:8000`
+  : window.location.host;
+const defaultUri = `${
+  window.location.protocol === "https:" ? "wss:" : "ws:"
+}//${defaultHost}/`;
 
-export default function App() {
+function InterviewApp() {
+  const { client, connected, connect, disconnect, volume } =
+    useLiveAPIContext();
+
   const [selectedProblem, setSelectedProblem] = useState<Problem>(problems[0]);
-  const [language, setLanguage] = useState<Language>('python');
-  const [code, setCode] = useState<string>(problems[0].starterCode['python']);
-  const [overlayItems, setOverlayItems] = useState<AIOverlayItem[]>([]);
+  const [language, setLanguage] = useState<Language>("python");
+  const [code, setCode] = useState<string>(problems[0].starterCode["python"]);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isMicActive, setIsMicActive] = useState(true);
+  const [isVisionActive, setIsVisionActive] = useState(false);
+  const [inputTranscription, setInputTranscription] = useState("");
+  const [outputTranscription, setOutputTranscription] = useState("");
 
   const editorRef = useRef<CodeEditorHandle>(null);
+  const [audioRecorder] = useState(() => new AudioRecorder());
+  const visionIntervalRef = useRef<number | null>(null);
 
-  // ── Handle AI actions (function calls from genesis pattern) ──
-  const handleActions = useCallback((actions: InterviewAction[]) => {
-    const newItems: AIOverlayItem[] = actions.map((action) => {
-      const id = `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-      switch (action.action) {
-        case 'add_code_comment':
-          return {
-            type: 'comment' as const,
-            data: {
-              id,
-              line: action.params.line || 1,
-              text: action.params.text || '',
-              severity: action.params.severity || 'info',
-            },
-          };
-        case 'highlight_code_region':
-          return {
-            type: 'highlight' as const,
-            data: {
-              id,
-              startLine: action.params.startLine || 1,
-              endLine: action.params.endLine || 1,
-              color: action.params.color || 'blue',
-              label: action.params.label,
-            },
-          };
-        case 'suggest_approach':
-          return {
-            type: 'suggestion' as const,
-            data: {
-              id,
-              title: action.params.title || 'Hint',
-              hint: action.params.hint || '',
-              complexity: action.params.complexity,
-            },
-          };
-        case 'rate_progress':
-          return {
-            type: 'rating' as const,
-            data: {
-              id,
-              category: action.params.category || 'overall',
-              score: action.params.score || 3,
-              feedback: action.params.feedback || '',
-            },
-          };
-        default:
-          return {
-            type: 'comment' as const,
-            data: { id, line: 1, text: 'Unknown action', severity: 'info' as const },
-          };
-      }
-    });
-
-    setOverlayItems((prev) => [...prev, ...newItems]);
-
-    // Auto-dismiss overlays after 15 seconds
-    newItems.forEach((item) => {
-      const itemId =
-        item.type === 'comment' ? item.data.id :
-        item.type === 'highlight' ? item.data.id :
-        item.type === 'suggestion' ? item.data.id :
-        item.data.id;
-      setTimeout(() => {
-        setOverlayItems((prev) => prev.filter((i) => {
-          const iid = i.type === 'comment' ? i.data.id :
-            i.type === 'highlight' ? i.data.id :
-            i.type === 'suggestion' ? i.data.id :
-            i.data.id;
-          return iid !== itemId;
-        }));
-      }, 15000);
-    });
-  }, []);
-
-  // ── Dismiss an overlay item ──
-  const handleDismissOverlay = useCallback((id: string) => {
-    setOverlayItems((prev) => prev.filter((item) => {
-      const itemId = item.type === 'comment' ? item.data.id :
-        item.type === 'highlight' ? item.data.id :
-        item.type === 'suggestion' ? item.data.id :
-        item.data.id;
-      return itemId !== id;
-    }));
-  }, []);
-
-  // ── Build system context for the AI ──
-  const systemContext = `The candidate is solving: "${selectedProblem.title}" (${selectedProblem.difficulty}) in ${language.charAt(0).toUpperCase() + language.slice(1)}.
-
-Problem Description:
-${selectedProblem.description}
-
-Examples:
-${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output: ${e.output}${e.explanation ? ` (${e.explanation})` : ''}`).join('\n')}`;
-
-  // ── Gemini Live hook (genesis architecture) ──
-  const {
-    connect,
-    disconnect,
-    isConnected,
-    isConnecting,
-    isSpeaking,
-    isListening,
-    isVisionActive,
-    error,
-    sendText,
-    startVision,
-    stopVision,
-    toggleVision,
-    toggleMic,
-  } = useGeminiLive({
-    apiKey: GEMINI_API_KEY,
-    systemContext,
-    onActions: handleActions,
-  });
-
-  // ── Capture callback for vision ──
-  const captureEditor = useCallback(() => {
-    return editorRef.current?.captureSnapshot() ?? null;
-  }, []);
-
-  // ── Auto-start vision when connected, auto-stop when disconnected ──
-  // The AI sees the editor screenshot every 2s — no need to send code as text
-  useEffect(() => {
-    if (isConnected) {
-      startVision(captureEditor);
-    } else {
-      stopVision();
+  // ── Connect / Disconnect handlers ──
+  const handleConnect = useCallback(async () => {
+    setIsConnecting(true);
+    try {
+      await connect();
+    } catch (e) {
+      console.error("Connection failed:", e);
+    } finally {
+      setIsConnecting(false);
     }
-  }, [isConnected, startVision, stopVision, captureEditor]);
+  }, [connect]);
+
+  const handleDisconnect = useCallback(async () => {
+    await disconnect();
+    audioRecorder.stop();
+    setIsMicActive(true);
+    setIsVisionActive(false);
+    if (visionIntervalRef.current) {
+      clearInterval(visionIntervalRef.current);
+      visionIntervalRef.current = null;
+    }
+  }, [disconnect, audioRecorder]);
+
+  // ── Audio recording → send to backend via client ──
+  useEffect(() => {
+    const onData = (base64: string) => {
+      client.sendRealtimeInput([
+        { mimeType: "audio/pcm;rate=16000", data: base64 },
+      ]);
+    };
+
+    if (connected && isMicActive) {
+      audioRecorder.on("data", onData).start();
+    } else {
+      audioRecorder.stop();
+    }
+
+    return () => {
+      audioRecorder.off("data", onData);
+    };
+  }, [connected, client, isMicActive, audioRecorder]);
+
+  // ── Speaking detection from volume ──
+  useEffect(() => {
+    setIsSpeaking(volume > 0.01);
+  }, [volume]);
+
+  // ── Transcription events ──
+  useEffect(() => {
+    const onInput = (text: string) => setInputTranscription(text);
+    const onOutput = (text: string) => setOutputTranscription(text);
+
+    client.on("inputtranscription", onInput);
+    client.on("outputtranscription", onOutput);
+
+    return () => {
+      client.off("inputtranscription", onInput);
+      client.off("outputtranscription", onOutput);
+    };
+  }, [client]);
+
+  // ── Vision: periodic editor screenshots sent as image/jpeg ──
+  useEffect(() => {
+    if (connected && isVisionActive) {
+      const sendFrame = () => {
+        const snapshot = editorRef.current?.captureSnapshot();
+        if (snapshot) {
+          // snapshot is data:image/jpeg;base64,... — strip the prefix
+          const data = snapshot.slice(snapshot.indexOf(",") + 1);
+          client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
+        }
+      };
+      // Send immediately, then every 2 seconds
+      sendFrame();
+      visionIntervalRef.current = window.setInterval(sendFrame, 2000);
+    } else {
+      if (visionIntervalRef.current) {
+        clearInterval(visionIntervalRef.current);
+        visionIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (visionIntervalRef.current) {
+        clearInterval(visionIntervalRef.current);
+        visionIntervalRef.current = null;
+      }
+    };
+  }, [connected, isVisionActive, client]);
+
+  // ── Auto-start vision when connected ──
+  useEffect(() => {
+    if (connected) {
+      setIsVisionActive(true);
+    }
+  }, [connected]);
 
   // ── Notify AI when problem changes ──
   useEffect(() => {
-    if (isConnected) {
-      sendText(
-        `[PROBLEM CHANGED] The candidate switched to: "${selectedProblem.title}" (${selectedProblem.difficulty}) using ${language.charAt(0).toUpperCase() + language.slice(1)}. Description: ${selectedProblem.description}. Please ask them to explain their approach.`
-      );
-      // Clear overlays on problem change
-      setOverlayItems([]);
+    if (connected) {
+      client.send([
+        {
+          text: `[PROBLEM CHANGED] The candidate switched to: "${selectedProblem.title}" (${selectedProblem.difficulty}) using ${language.charAt(0).toUpperCase() + language.slice(1)}. Description: ${selectedProblem.description}. Please ask them to explain their approach.`,
+        },
+      ]);
     }
-  }, [selectedProblem, isConnected, sendText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProblem]);
 
-  // ── Vision toggle handler (manual override) ──
+  // ── Toggle mic ──
+  const handleToggleMic = useCallback(() => {
+    setIsMicActive((prev) => !prev);
+  }, []);
+
+  // ── Toggle vision ──
   const handleToggleVision = useCallback(() => {
-    toggleVision(captureEditor);
-  }, [toggleVision, captureEditor]);
+    setIsVisionActive((prev) => !prev);
+  }, []);
 
   return (
     <div className="flex h-screen w-full flex-col bg-[#0f1115] text-white overflow-hidden">
       {/* Header */}
-      <header className="flex h-16 items-center justify-between border-b border-white/10 bg-[#161b22] px-6">
+      <header className="flex h-16 items-center justify-between border-b border-white/10 bg-[#161b22] px-6 shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
             <Code2 size={20} />
           </div>
-          <h1 className="text-lg font-bold tracking-tight">MockInterview.ai</h1>
+          <h1 className="text-lg font-bold tracking-tight">
+            MockInterview.ai
+          </h1>
         </div>
 
         <div className="flex items-center gap-4">
@@ -192,7 +177,7 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
             className="rounded-lg border border-white/10 bg-[#0d1117] px-3 py-1.5 text-sm text-gray-300 focus:border-blue-500 focus:outline-none"
             value={selectedProblem.id}
             onChange={(e) => {
-              const p = problems.find((p) => p.id === e.target.value);
+              const p = problems.find((prob) => prob.id === e.target.value);
               if (p) {
                 setSelectedProblem(p);
                 setCode(p.starterCode[language]);
@@ -225,22 +210,28 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
           <div className="flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5 border border-white/5">
             <div
               className={`h-2 w-2 rounded-full ${
-                isConnected
-                  ? 'bg-green-500 animate-pulse'
+                connected
+                  ? "bg-green-500 animate-pulse"
                   : isConnecting
-                  ? 'bg-yellow-500 animate-pulse'
-                  : 'bg-red-500'
+                    ? "bg-yellow-500 animate-pulse"
+                    : "bg-red-500"
               }`}
             />
             <span className="text-xs font-medium text-gray-400">
-              {isConnected ? 'AI Connected' : isConnecting ? 'Connecting...' : 'AI Disconnected'}
+              {connected
+                ? "AI Connected"
+                : isConnecting
+                  ? "Connecting..."
+                  : "AI Disconnected"}
             </span>
           </div>
 
-          {isVisionActive && (
+          {isVisionActive && connected && (
             <div className="flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1.5 border border-blue-500/20">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-xs font-medium text-blue-400">Vision Active</span>
+              <span className="text-xs font-medium text-blue-400">
+                Vision Active
+              </span>
             </div>
           )}
         </div>
@@ -253,19 +244,17 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
           <ProblemPane problem={selectedProblem} />
         </div>
 
-        {/* Right: Code Editor with AI Overlays */}
+        {/* Right: Code Editor */}
         <div className="flex-1 relative bg-[#1e1e1e]">
           <CodeEditor
             ref={editorRef}
             code={code}
-            onChange={(val) => setCode(val || '')}
+            onChange={(val) => setCode(val || "")}
             language={language}
-            overlayItems={overlayItems}
-            onDismissOverlay={handleDismissOverlay}
           />
 
-          {/* AI Visualizer Overlay */}
-          {isConnected && (
+          {/* AI Interviewer Visualizer */}
+          {connected && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -282,7 +271,11 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
                         <motion.div
                           key={i}
                           animate={{ height: [4, 16, 4] }}
-                          transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
+                          transition={{
+                            repeat: Infinity,
+                            duration: 0.5,
+                            delay: i * 0.1,
+                          }}
                           className="w-1 rounded-full bg-blue-500"
                         />
                       ))}
@@ -291,15 +284,32 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
                     <div className="h-4 w-20 rounded bg-white/5" />
                   )}
                 </div>
+                {outputTranscription && (
+                  <p className="text-[10px] text-gray-500 max-w-[200px] truncate mt-1">
+                    {outputTranscription}
+                  </p>
+                )}
               </div>
 
               <div className="h-8 w-px bg-white/10" />
 
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">You</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  You
+                </span>
                 <div className="flex items-center gap-2">
-                  <Mic size={16} className={isListening ? 'text-green-400' : 'text-gray-600'} />
+                  <Mic
+                    size={16}
+                    className={
+                      isMicActive ? "text-green-400" : "text-gray-600"
+                    }
+                  />
                 </div>
+                {inputTranscription && (
+                  <p className="text-[10px] text-gray-500 max-w-[200px] truncate mt-1">
+                    {inputTranscription}
+                  </p>
+                )}
               </div>
             </motion.div>
           )}
@@ -307,24 +317,28 @@ ${selectedProblem.examples.map((e, i) => `${i + 1}. Input: ${e.input} → Output
       </main>
 
       {/* Footer Controls */}
-      <footer className="h-20 border-t border-white/10 bg-[#161b22] flex items-center justify-center relative z-10">
+      <footer className="h-20 border-t border-white/10 bg-[#161b22] flex items-center justify-center relative z-10 shrink-0">
         <ControlBar
-          isConnected={isConnected}
+          isConnected={connected}
           isConnecting={isConnecting}
-          isListening={isListening}
+          isMicActive={isMicActive}
           isVisionActive={isVisionActive}
-          onConnect={connect}
-          onDisconnect={disconnect}
-          onToggleMic={toggleMic}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          onToggleMic={handleToggleMic}
           onToggleVision={handleToggleVision}
         />
-
-        {error && (
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 text-sm text-red-400 bg-red-900/20 px-3 py-1 rounded-lg border border-red-500/20">
-            {error}
-          </div>
-        )}
       </footer>
     </div>
   );
 }
+
+function App() {
+  return (
+    <LiveAPIProvider url={defaultUri} userId="user1">
+      <InterviewApp />
+    </LiveAPIProvider>
+  );
+}
+
+export default App;
