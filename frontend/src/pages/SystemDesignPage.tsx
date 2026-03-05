@@ -21,6 +21,7 @@ import { Brain, Mic, ArrowLeft } from 'lucide-react';
 import { FeedbackReport, FeedbackData } from '../components/feedback/FeedbackReport';
 import { useTabRecorder } from '../hooks/use-tab-recorder';
 import { fetchAIFeedback } from '../utils/feedback-api';
+import { addRecord } from '../utils/interview-history';
 
 // WebSocket URL
 const isDevelopment = window.location.port === '3000';
@@ -111,6 +112,14 @@ function SystemDesignSession() {
         });
         setFeedbackData(feedback);
         setShowFeedback(true);
+        addRecord({
+          mode: 'system-design',
+          problemId: selectedProblem.id,
+          problemTitle: selectedProblem.title,
+          overallScore: feedback.overallScore,
+          categories: feedback.categories.map(c => ({ name: c.name, score: c.score })),
+          duration,
+        });
       } catch (e) {
         console.error('Failed to generate AI feedback:', e);
       } finally {
@@ -232,7 +241,7 @@ You are now in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through high-le
       <header className="flex h-14 items-center justify-between border-b border-white/10 bg-[#161b22] px-4 shrink-0">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors mr-2 cursor-pointer"
           >
             <ArrowLeft size={16} />

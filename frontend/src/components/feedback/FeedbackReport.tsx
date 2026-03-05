@@ -306,11 +306,11 @@ export const FeedbackReport: FC<FeedbackReportProps> = ({
         {/* Footer */}
         <div className="sticky bottom-0 flex items-center justify-between px-6 py-4 border-t border-white/10 bg-[#0d1117]/95 backdrop-blur-md rounded-b-3xl">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors cursor-pointer"
           >
             <ArrowLeft size={16} />
-            Back to Home
+            Back to Dashboard
           </button>
           <button
             onClick={onClose}

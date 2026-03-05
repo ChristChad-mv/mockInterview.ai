@@ -12,6 +12,7 @@ import { QuestionPane } from '../components/behavioral/QuestionPane';
 import { FeedbackReport, FeedbackData } from '../components/feedback/FeedbackReport';
 import { useTabRecorder } from '../hooks/use-tab-recorder';
 import { fetchAIFeedback } from '../utils/feedback-api';
+import { addRecord } from '../utils/interview-history';
 import {
   behavioralQuestions,
   BehavioralQuestion,
@@ -127,6 +128,14 @@ function BehavioralSession() {
         });
         setFeedbackData(feedback);
         setShowFeedback(true);
+        addRecord({
+          mode: 'behavioral',
+          problemId: selectedQuestion.id,
+          problemTitle: selectedQuestion.title,
+          overallScore: feedback.overallScore,
+          categories: feedback.categories.map(c => ({ name: c.name, score: c.score })),
+          duration,
+        });
       } catch (e) {
         console.error('Failed to generate AI feedback:', e);
       } finally {
@@ -220,7 +229,7 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
         <header className="flex h-14 items-center justify-between border-b border-white/10 bg-[#161b22] px-4 shrink-0">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/dashboard')}
               className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors mr-2 cursor-pointer"
             >
               <ArrowLeft size={16} />
