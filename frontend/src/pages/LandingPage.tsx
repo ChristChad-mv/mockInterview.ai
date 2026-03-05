@@ -100,6 +100,12 @@ export default function LandingPage() {
           </span>
         </div>
         <div className="flex items-center gap-6">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Dashboard
+          </button>
           <a
             href="https://github.com/ChristChad-mv/mockInterview.ai"
             target="_blank"

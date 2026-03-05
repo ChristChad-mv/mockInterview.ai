@@ -10,6 +10,7 @@ import LandingPage from "./pages/LandingPage";
 const CodingInterviewPage = lazy(() => import("./pages/CodingInterviewPage"));
 const SystemDesignPage = lazy(() => import("./pages/SystemDesignPage"));
 const BehavioralPage = lazy(() => import("./pages/BehavioralPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 
 function PageLoader() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/coding/:problemId" element={<CodingInterviewPage />} />
           <Route path="/system-design/:problemId" element={<SystemDesignPage />} />
           <Route path="/behavioral/:questionId" element={<BehavioralPage />} />
