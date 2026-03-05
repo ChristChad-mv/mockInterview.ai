@@ -1,25 +1,31 @@
 import React from 'react';
-import { Mic, MicOff, Play, Square, Video, VideoOff } from 'lucide-react';
+import { Mic, MicOff, Play, Square, Video, VideoOff, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface ControlBarProps {
   isConnected: boolean;
+  isConnecting: boolean;
   isListening: boolean;
+  isVisionActive: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
-  onToggleMic: () => void; // Not implemented in hook yet, but good for UI
+  onToggleMic: () => void;
+  onToggleVision: () => void;
 }
 
 export const ControlBar: React.FC<ControlBarProps> = ({
   isConnected,
+  isConnecting,
   isListening,
+  isVisionActive,
   onConnect,
   onDisconnect,
   onToggleMic,
+  onToggleVision,
 }) => {
   return (
     <div className="flex items-center justify-center gap-4 rounded-2xl border border-white/10 bg-gray-900/80 p-4 shadow-xl backdrop-blur-md">
-      {!isConnected ? (
+      {!isConnected && !isConnecting ? (
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -29,6 +35,11 @@ export const ControlBar: React.FC<ControlBarProps> = ({
           <Play size={20} fill="currentColor" />
           Start Interview
         </motion.button>
+      ) : isConnecting ? (
+        <div className="flex items-center gap-2 rounded-xl bg-blue-600/50 px-6 py-3 font-semibold text-white/70 cursor-wait">
+          <Loader2 size={20} className="animate-spin" />
+          Connecting...
+        </div>
       ) : (
         <>
           <motion.button
@@ -43,6 +54,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
           <div className="h-8 w-px bg-white/10 mx-2" />
 
+          {/* Mic toggle */}
           <div className="flex items-center gap-3">
             <motion.button
               whileHover={{ scale: 1.1 }}
@@ -58,6 +70,23 @@ export const ControlBar: React.FC<ControlBarProps> = ({
               {isListening ? 'Listening...' : 'Mic Muted'}
             </span>
           </div>
+
+          <div className="h-8 w-px bg-white/10 mx-2" />
+
+          {/* Vision toggle — genesis pattern */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onToggleVision}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-medium text-sm transition-all ${
+              isVisionActive
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-lg shadow-blue-500/10'
+                : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white/70'
+            }`}
+          >
+            {isVisionActive ? <Video size={16} /> : <VideoOff size={16} />}
+            {isVisionActive ? 'Vision ON' : 'Vision'}
+          </motion.button>
         </>
       )}
     </div>
