@@ -1,8 +1,18 @@
+# Dependencies
 node_modules/
+.venv/
+__pycache__/
+
+# Build output
 build/
 dist/
 coverage/
+
+# Environment
+.env
+.env.local
+!.env.example
+
+# OS
 .DS_Store
 *.log
-.env*
-!.env.example

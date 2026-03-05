@@ -4,11 +4,17 @@
 import type { Blob as GenAIBlob } from "@google/genai";
 
 /**
- * Convert base64 string to Uint8Array
- * Used to decode audio data received from Gemini Live
+ * Convert base64 (or base64url) string to Uint8Array
+ * Handles both standard base64 and base64url encoding (- and _ chars)
  */
 export function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
+  let standardBase64 = base64.replace(/[\s\n\r]/g, '');
+  standardBase64 = standardBase64.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = standardBase64.length % 4;
+  if (pad) {
+    standardBase64 += '='.repeat(4 - pad);
+  }
+  const binaryString = atob(standardBase64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {

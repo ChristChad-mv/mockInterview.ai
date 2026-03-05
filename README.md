@@ -1,20 +1,56 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# 🎤 MockInterview.ai
+
+**AI-powered mock coding interviews with real-time voice & vision**
+
+Built with Google Gemini Live API + ADK for the [Gemini Live Agent Challenge](https://ai.google.dev/gemini-api/docs/live-agent-challenge)
+
 </div>
 
-# Run and deploy your AI Studio app
+## Architecture
 
-This contains everything you need to run your app locally.
+```
+mockInterview.ai/
+├── frontend/          # React + Vite + TypeScript
+│   ├── src/
+│   │   ├── hooks/     # useGeminiLive — WebSocket to backend
+│   │   ├── lib/       # Audio PCM utils, Gemini config
+│   │   ├── components/# UI (Monaco editor, overlays, controls)
+│   │   └── types/     # TypeScript types
+│   └── ...
+└── backend/           # Python FastAPI + Google ADK
+    └── app/
+        ├── main.py              # WebSocket relay (audio binary + JSON)
+        └── interview_agent/     # ADK Agent definition
+```
 
-View your app in AI Studio: https://ai.studio/apps/9ae5d9ee-c9a4-4079-aeea-1a9dc9fe925b
+**Audio flow:** Browser mic → PCM16 binary frames → Backend WebSocket → ADK → Gemini Live API → ADK events → Binary PCM frames → Browser AudioContext (24kHz)
+
+**Vision flow:** Monaco editor → Canvas screenshot → Base64 PNG → JSON frame → Backend → Gemini (every 2s)
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js 18+, Python 3.11+, uv
 
+### 1. Backend
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+cd backend
+cp .env.example .env   # Add your GOOGLE_API_KEY
+uv sync
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+# Create .env.local with:
+#   GEMINI_API_KEY=your-key
+#   VITE_WS_URL=ws://localhost:8000
+npm run dev
+```
+
+Open http://localhost:3000 — allow microphone access, and start your mock interview!
