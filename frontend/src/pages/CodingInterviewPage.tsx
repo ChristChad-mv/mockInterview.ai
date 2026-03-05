@@ -17,6 +17,8 @@ import { problems, Problem, LANGUAGES, Language } from "../data/problems";
 import { motion } from "motion/react";
 import { Code2, Mic, ArrowLeft } from "lucide-react";
 import { FeedbackReport, FeedbackData } from "../components/feedback/FeedbackReport";
+import { useTabRecorder } from "../hooks/use-tab-recorder";
+import { fetchAIFeedback } from "../utils/feedback-api";
 
 // WebSocket URL: in production, same host. In dev, connect to backend on :8000.
 const isDevelopment = window.location.port === "3000";
@@ -52,10 +54,12 @@ function InterviewSession() {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
+  const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
   const editorRef = useRef<CodeEditorHandle>(null);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const visionIntervalRef = useRef<number | null>(null);
+  const { startRecording, stopRecording } = useTabRecorder();
 
   // ── Sync URL param → problem ──
   useEffect(() => {
@@ -74,12 +78,14 @@ function InterviewSession() {
     try {
       await connect();
       setSessionStartTime(Date.now());
+      // Start recording the tab for post-interview AI analysis
+      startRecording().catch((e) => console.warn('Tab recording not available:', e));
     } catch (e) {
       console.error("Connection failed:", e);
     } finally {
       setIsConnecting(false);
     }
-  }, [connect]);
+  }, [connect, startRecording]);
 
   const handleDisconnect = useCallback(async () => {
     await disconnect();
@@ -94,41 +100,28 @@ function InterviewSession() {
     const duration = sessionStartTime
       ? `${Math.floor((Date.now() - sessionStartTime) / 60000)} min`
       : '0 min';
-
-    const feedback: FeedbackData = {
-      overallScore: 7,
-      duration,
-      mode: 'coding',
-      problemTitle: selectedProblem.title,
-      categories: [
-        { name: 'Problem Understanding', score: 7, comment: 'Good initial analysis of the problem constraints.' },
-        { name: 'Approach & Algorithm', score: 7, comment: 'Solid approach. Consider discussing trade-offs between solutions.' },
-        { name: 'Code Quality', score: 6, comment: 'Clean code structure. Watch for edge cases and naming conventions.' },
-        { name: 'Communication', score: 8, comment: 'Great job thinking out loud and explaining your reasoning.' },
-        { name: 'Testing & Edge Cases', score: 6, comment: 'Remember to walk through test cases before submitting.' },
-      ],
-      strengths: [
-        'Communicated thought process clearly while coding',
-        'Good understanding of the problem requirements',
-        'Clean and readable code structure',
-      ],
-      improvements: [
-        'Discuss time and space complexity before and after coding',
-        'Consider more edge cases (empty input, single element, duplicates)',
-        'Practice optimizing from brute force to optimal solution',
-      ],
-      nextSteps: [
-        'Solve 2 more problems of similar difficulty',
-        'Practice explaining Big-O complexity for every solution',
-        'Review common patterns: sliding window, two pointers, hash maps',
-        'Time yourself — aim for 25 minutes per medium problem',
-      ],
-    };
-
-    setFeedbackData(feedback);
-    setShowFeedback(true);
     setSessionStartTime(null);
-  }, [disconnect, audioRecorder, sessionStartTime, selectedProblem]);
+
+    // Stop recording and upload for AI analysis
+    const videoBlob = await stopRecording();
+    if (videoBlob && videoBlob.size > 0) {
+      setIsGeneratingFeedback(true);
+      try {
+        const feedback = await fetchAIFeedback({
+          videoBlob,
+          mode: 'coding',
+          problemTitle: selectedProblem.title,
+          duration,
+        });
+        setFeedbackData(feedback);
+        setShowFeedback(true);
+      } catch (e) {
+        console.error('Failed to generate AI feedback:', e);
+      } finally {
+        setIsGeneratingFeedback(false);
+      }
+    }
+  }, [disconnect, audioRecorder, sessionStartTime, selectedProblem, stopRecording]);
 
   // ── Audio recording → send to backend via client ──
   useEffect(() => {
@@ -402,6 +395,20 @@ function InterviewSession() {
         />
       </footer>
     </div>
+
+    {isGeneratingFeedback && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-[#161b22] p-10"
+        >
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+          <p className="text-lg font-bold text-white">Analyzing your interview...</p>
+          <p className="text-sm text-gray-400">Gemini is reviewing the full recording</p>
+        </motion.div>
+      </div>
+    )}
 
     {showFeedback && feedbackData && (
       <FeedbackReport

@@ -22,7 +22,7 @@ playground: build-frontend-if-needed
 	@echo "|                                                                             |"
 	@echo "| 👁️  Vision auto-enables — the AI can see your code editor.                  |"
 	@echo "==============================================================================="
-	uv run uvicorn app.fast_api_app:app --host localhost --port 8000 --reload
+	@if [ -f .env ]; then set -a && . ./.env && set +a; fi && uv run uvicorn app.fast_api_app:app --host localhost --port 8000 --reload
 
 # ==============================================================================
 # Local Development Commands

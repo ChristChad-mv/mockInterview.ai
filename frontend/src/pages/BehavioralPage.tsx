@@ -10,6 +10,8 @@ import { LiveAPIProvider, useLiveAPIContext } from '../contexts/LiveAPIContext';
 import { AudioRecorder } from '../utils/audio-recorder';
 import { QuestionPane } from '../components/behavioral/QuestionPane';
 import { FeedbackReport, FeedbackData } from '../components/feedback/FeedbackReport';
+import { useTabRecorder } from '../hooks/use-tab-recorder';
+import { fetchAIFeedback } from '../utils/feedback-api';
 import {
   behavioralQuestions,
   BehavioralQuestion,
@@ -56,8 +58,10 @@ function BehavioralSession() {
   const [elapsed, setElapsed] = useState('0:00');
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
+  const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
   const [audioRecorder] = useState(() => new AudioRecorder());
+  const { startRecording, stopRecording } = useTabRecorder();
 
   // Conversation log for generating feedback
   const [conversationLog, setConversationLog] = useState<
@@ -93,82 +97,43 @@ function BehavioralSession() {
       await connect();
       setSessionStartTime(Date.now());
       setConversationLog([]);
+      startRecording().catch((e) => console.warn('Tab recording not available:', e));
     } catch (e) {
       console.error('Connection failed:', e);
     } finally {
       setIsConnecting(false);
     }
-  }, [connect]);
+  }, [connect, startRecording]);
 
   const handleDisconnect = useCallback(async () => {
     await disconnect();
     audioRecorder.stop();
     setIsMicActive(true);
 
-    // Generate feedback from the session
     const duration = sessionStartTime
       ? `${Math.floor((Date.now() - sessionStartTime) / 60000)} min`
       : '0 min';
-
-    const feedback: FeedbackData = {
-      overallScore: 7,
-      duration,
-      mode: 'behavioral',
-      problemTitle: selectedQuestion.title,
-      categories: [
-        {
-          name: 'STAR Structure',
-          score: 7,
-          comment:
-            'Good use of the framework. Try to be more specific in the Situation and Result sections.',
-        },
-        {
-          name: 'Specificity',
-          score: 6,
-          comment:
-            'Some answers were general. Use concrete examples with names, numbers, and outcomes.',
-        },
-        {
-          name: 'Communication',
-          score: 8,
-          comment:
-            'Clear and articulate delivery. Good pace and confidence.',
-        },
-        {
-          name: 'Self-Awareness',
-          score: 7,
-          comment:
-            'Showed good reflection on lessons learned. Could dig deeper on personal growth.',
-        },
-        {
-          name: 'Relevance',
-          score: 7,
-          comment:
-            'Answers were mostly on-topic. Watch for tangents when follow-ups are asked.',
-        },
-      ],
-      strengths: [
-        'Confident and clear communication style',
-        'Good at framing the initial situation',
-        'Showed genuine reflection on experiences',
-      ],
-      improvements: [
-        'Quantify results more — use numbers and metrics',
-        'Keep responses to 2-3 minutes, some answers were too long',
-        'Practice transitioning smoothly between STAR sections',
-      ],
-      nextSteps: [
-        'Practice 3 more behavioral questions using the STAR method',
-        'Record yourself and review — focus on conciseness',
-        'Prepare 5 "go-to" stories that cover different categories',
-        'Research the target company\'s leadership principles',
-      ],
-    };
-
-    setFeedbackData(feedback);
-    setShowFeedback(true);
     setSessionStartTime(null);
-  }, [disconnect, audioRecorder, sessionStartTime, selectedQuestion]);
+
+    const videoBlob = await stopRecording();
+    if (videoBlob && videoBlob.size > 0) {
+      setIsGeneratingFeedback(true);
+      try {
+        const feedback = await fetchAIFeedback({
+          videoBlob,
+          mode: 'behavioral',
+          problemTitle: selectedQuestion.title,
+          duration,
+        });
+        setFeedbackData(feedback);
+        setShowFeedback(true);
+      } catch (e) {
+        console.error('Failed to generate AI feedback:', e);
+      } finally {
+        setIsGeneratingFeedback(false);
+      }
+    }
+  }, [disconnect, audioRecorder, sessionStartTime, selectedQuestion, stopRecording]);
 
   // ── Audio recording ──
   useEffect(() => {
@@ -525,6 +490,21 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
           </div>
         </footer>
       </div>
+
+      {/* Generating Feedback Overlay */}
+      {isGeneratingFeedback && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-[#161b22] p-10"
+          >
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-green-500 border-t-transparent" />
+            <p className="text-lg font-bold text-white">Analyzing your responses...</p>
+            <p className="text-sm text-gray-400">Gemini is reviewing the full recording</p>
+          </motion.div>
+        </div>
+      )}
 
       {/* Feedback Report Overlay */}
       {showFeedback && feedbackData && (

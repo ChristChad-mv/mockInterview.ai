@@ -16,21 +16,25 @@ import asyncio
 import json
 import logging
 import os
+import traceback
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
 import backoff
 import google.auth
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from google import genai
 from google.adk.agents.live_request_queue import LiveRequest, LiveRequestQueue
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.cloud import logging as google_cloud_logging
+from google.cloud import storage as gcs_storage
 from vertexai.agent_engines import _utils
 from websockets.exceptions import ConnectionClosedError
 
@@ -63,6 +67,14 @@ logging.basicConfig(level=logging.INFO)
 
 setup_telemetry()
 _, project_id = google.auth.default()
+
+# GCS bucket for interview recordings
+RECORDINGS_BUCKET = os.environ.get("RECORDINGS_BUCKET", f"{project_id}-interview-recordings")
+try:
+    gcs_client = gcs_storage.Client(project=project_id)
+except Exception:
+    gcs_client = None
+    logging.warning("GCS client not available — video uploads will be stored locally")
 
 
 # Initialize ADK services
@@ -254,6 +266,125 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     connect_and_run = get_connect_and_run_callable(websocket)
     await connect_and_run()
+
+
+# ── Video-based AI Feedback ──
+
+FEEDBACK_PROMPT = """You are an expert technical interview evaluator. You just watched a complete recording of a mock interview.
+
+Analyze the ENTIRE video carefully, including:
+- What the candidate said (explanations, reasoning, questions asked)
+- How they communicated (clarity, confidence, pace, verbal fillers, pauses)
+- Their technical approach (problem-solving process, code quality, design decisions)
+- Their interaction with the AI interviewer (how they responded to hints and follow-ups)
+- Visual cues: how they wrote code, drew diagrams, their editing patterns
+
+IMPORTANT: Base your scores ONLY on what you actually observe in the video. Be honest, specific, and constructive.
+
+Interview Mode: {mode}
+Problem: {problem_title}
+Duration: {duration}
+
+Respond with ONLY valid JSON in this exact format (no markdown, no code fences):
+{{
+  "overallScore": <number 1-10>,
+  "categories": [
+    {{"name": "<category name>", "score": <number 1-10>, "comment": "<1-2 sentence specific feedback referencing what you saw>"}}
+  ],
+  "strengths": ["<specific strength from the video>", "<specific strength>", "<specific strength>"],
+  "improvements": ["<specific improvement with example from video>", "<specific improvement>", "<specific improvement>"],
+  "nextSteps": ["<actionable step 1>", "<actionable step 2>", "<actionable step 3>", "<actionable step 4>"]
+}}
+
+For CODING interviews, use categories: Problem Understanding, Approach & Algorithm, Code Quality, Communication, Testing & Edge Cases.
+For SYSTEM DESIGN interviews, use categories: Requirements Gathering, High-Level Design, Deep Dive & Scalability, Trade-offs, Communication.
+For BEHAVIORAL interviews, use categories: STAR Structure, Specificity & Detail, Communication Clarity, Self-Awareness, Relevance.
+"""
+
+
+@app.post("/api/feedback")
+async def generate_video_feedback(
+    video: UploadFile = File(...),
+    mode: str = Form(...),
+    problem_title: str = Form(...),
+    duration: str = Form("0 min"),
+) -> dict:
+    """Analyze an interview recording with Gemini 3.0 Flash and return structured feedback."""
+    try:
+        video_bytes = await video.read()
+        video_size_mb = len(video_bytes) / (1024 * 1024)
+        logging.info(
+            f"Received {video_size_mb:.1f}MB video for {mode} interview: {problem_title}"
+        )
+
+        # Upload to GCS for Gemini to read directly
+        video_uri = None
+        if gcs_client:
+            try:
+                bucket = gcs_client.bucket(RECORDINGS_BUCKET)
+                if not bucket.exists():
+                    bucket = gcs_client.create_bucket(RECORDINGS_BUCKET, location="us-central1")
+
+                blob_name = f"recordings/{uuid.uuid4()}.webm"
+                blob = bucket.blob(blob_name)
+                blob.upload_from_string(video_bytes, content_type="video/webm")
+                video_uri = f"gs://{RECORDINGS_BUCKET}/{blob_name}"
+                logging.info(f"Uploaded recording to {video_uri}")
+            except Exception as e:
+                logging.warning(f"GCS upload failed, using inline upload: {e}")
+
+        # Build the Gemini request
+        prompt = FEEDBACK_PROMPT.format(
+            mode=mode,
+            problem_title=problem_title,
+            duration=duration,
+        )
+
+        # Use the Gemini API (API key) for 3.x models — not available on Vertex AI yet
+        gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is required for feedback analysis")
+
+        client = genai.Client(api_key=gemini_api_key)
+
+        # Always use inline bytes (GCS URIs only work with Vertex AI)
+        video_part = genai.types.Part.from_bytes(
+            data=video_bytes,
+            mime_type="video/webm",
+        )
+
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=[
+                genai.types.Content(
+                    parts=[video_part, genai.types.Part.from_text(text=prompt)]
+                )
+            ],
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3,
+            ),
+        )
+
+        # Parse the JSON response
+        feedback_json = json.loads(response.text)
+
+        # Add metadata
+        feedback_json["mode"] = mode
+        feedback_json["problemTitle"] = problem_title
+        feedback_json["duration"] = duration
+
+        logging.info(
+            f"Generated AI feedback: overall={feedback_json.get('overallScore')}/10"
+        )
+        return feedback_json
+
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse AI feedback JSON: {e}")
+        raise HTTPException(status_code=500, detail="Failed to parse AI feedback")
+    except Exception as e:
+        logging.error(f"Feedback generation failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")

@@ -19,6 +19,8 @@ import {
 import { motion } from 'motion/react';
 import { Brain, Mic, ArrowLeft } from 'lucide-react';
 import { FeedbackReport, FeedbackData } from '../components/feedback/FeedbackReport';
+import { useTabRecorder } from '../hooks/use-tab-recorder';
+import { fetchAIFeedback } from '../utils/feedback-api';
 
 // WebSocket URL
 const isDevelopment = window.location.port === '3000';
@@ -51,10 +53,12 @@ function SystemDesignSession() {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
+  const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
   const whiteboardRef = useRef<WhiteboardHandle>(null);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const visionIntervalRef = useRef<number | null>(null);
+  const { startRecording, stopRecording } = useTabRecorder();
 
   // ── Sync URL param → problem ──
   useEffect(() => {
@@ -72,12 +76,13 @@ function SystemDesignSession() {
     try {
       await connect();
       setSessionStartTime(Date.now());
+      startRecording().catch((e) => console.warn('Tab recording not available:', e));
     } catch (e) {
       console.error('Connection failed:', e);
     } finally {
       setIsConnecting(false);
     }
-  }, [connect]);
+  }, [connect, startRecording]);
 
   const handleDisconnect = useCallback(async () => {
     await disconnect();
@@ -92,41 +97,27 @@ function SystemDesignSession() {
     const duration = sessionStartTime
       ? `${Math.floor((Date.now() - sessionStartTime) / 60000)} min`
       : '0 min';
-
-    const feedback: FeedbackData = {
-      overallScore: 7,
-      duration,
-      mode: 'system-design',
-      problemTitle: selectedProblem.title,
-      categories: [
-        { name: 'Requirements Gathering', score: 7, comment: 'Good clarifying questions. Try to estimate scale earlier.' },
-        { name: 'High-Level Design', score: 7, comment: 'Solid architecture. Consider discussing alternatives.' },
-        { name: 'Deep Dive', score: 6, comment: 'Good depth on some components. Cover more bottlenecks.' },
-        { name: 'Trade-offs', score: 6, comment: 'Mention consistency vs availability, SQL vs NoSQL choices explicitly.' },
-        { name: 'Communication', score: 8, comment: 'Clear explanation of design decisions and reasoning.' },
-      ],
-      strengths: [
-        'Good high-level architecture with clear component separation',
-        'Explained design decisions with clear reasoning',
-        'Drew a clean and organized diagram',
-      ],
-      improvements: [
-        'Start with back-of-the-envelope estimation (QPS, storage, bandwidth)',
-        'Discuss failure scenarios and how the system handles them',
-        'Address scalability bottlenecks proactively',
-      ],
-      nextSteps: [
-        'Practice 2 more system design problems focusing on estimation',
-        'Study CAP theorem and its practical implications',
-        'Review caching strategies (write-through, write-back, cache-aside)',
-        'Learn about consistent hashing and database sharding patterns',
-      ],
-    };
-
-    setFeedbackData(feedback);
-    setShowFeedback(true);
     setSessionStartTime(null);
-  }, [disconnect, audioRecorder, sessionStartTime, selectedProblem]);
+
+    const videoBlob = await stopRecording();
+    if (videoBlob && videoBlob.size > 0) {
+      setIsGeneratingFeedback(true);
+      try {
+        const feedback = await fetchAIFeedback({
+          videoBlob,
+          mode: 'system-design',
+          problemTitle: selectedProblem.title,
+          duration,
+        });
+        setFeedbackData(feedback);
+        setShowFeedback(true);
+      } catch (e) {
+        console.error('Failed to generate AI feedback:', e);
+      } finally {
+        setIsGeneratingFeedback(false);
+      }
+    }
+  }, [disconnect, audioRecorder, sessionStartTime, selectedProblem, stopRecording]);
 
   // ── Audio recording → send to backend ──
   useEffect(() => {
@@ -398,6 +389,20 @@ You are now in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through high-le
         />
       </footer>
     </div>
+
+    {isGeneratingFeedback && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-[#161b22] p-10"
+        >
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-500 border-t-transparent" />
+          <p className="text-lg font-bold text-white">Analyzing your design...</p>
+          <p className="text-sm text-gray-400">Gemini is reviewing the full recording</p>
+        </motion.div>
+      </div>
+    )}
 
     {showFeedback && feedbackData && (
       <FeedbackReport
