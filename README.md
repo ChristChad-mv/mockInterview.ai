@@ -1,85 +1,168 @@
-# mockinterview-agent
+# 🎙️ MockInterview.ai
 
-Real-time voice & video agent
-Agent generated with [`googleCloudPlatform/agent-starter-pack`](https://github.com/GoogleCloudPlatform/agent-starter-pack) version `0.38.0`
+**AI-powered mock technical interviews with real-time voice, vision, and code editing.**
 
-## Project Structure
+An AI interviewer that talks to you, watches your code in real time, and gives feedback — just like a real interview at a top tech company. Built with [Google ADK](https://google.github.io/adk-docs/) + [Gemini Live](https://ai.google.dev/gemini-api/docs/live) native audio.
 
-```
-mockinterview-agent/
-├── app/         # Core agent code
-│   ├── agent.py               # Main agent logic
-│   ├── fast_api_app.py        # FastAPI Backend server
-│   └── app_utils/             # App utilities and helpers
-├── .cloudbuild/               # CI/CD pipeline configurations for Google Cloud Build
-├── deployment/                # Infrastructure and deployment scripts
-├── tests/                     # Unit, integration, and load tests
-├── GEMINI.md                  # AI-assisted development guide
-├── Makefile                   # Development commands
-└── pyproject.toml             # Project dependencies
-```
+> 🏆 Built for the [Gemini Live Agent Challenge](https://googleai.devpost.com/)
 
-> 💡 **Tip:** Use [Gemini CLI](https://github.com/google-gemini/gemini-cli) for AI-assisted development - project context is pre-configured in `GEMINI.md`.
-
-## Requirements
-
-Before you begin, ensure you have:
-- **uv**: Python package manager (used for all dependency management in this project) - [Install](https://docs.astral.sh/uv/getting-started/installation/) ([add packages](https://docs.astral.sh/uv/concepts/dependencies/) with `uv add <package>`)
-- **Google Cloud SDK**: For GCP services - [Install](https://cloud.google.com/sdk/docs/install)
-- **Terraform**: For infrastructure deployment - [Install](https://developer.hashicorp.com/terraform/downloads)
-- **make**: Build automation tool - [Install](https://www.gnu.org/software/make/) (pre-installed on most Unix-based systems)
-
-
-## Quick Start
-
-Install required packages and launch the local development environment:
-
-```bash
-make install && make playground
-```
-
-## Commands
-
-| Command              | Description                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `make install`       | Install dependencies using uv                                                               |
-| `make playground`    | Launch local development environment                                                        |
-| `make lint`          | Run code quality checks                                                                     |
-| `make test`          | Run unit and integration tests                                                              |
-| `make deploy`        | Deploy agent to Cloud Run                                                                   |
-| `make local-backend` | Launch local development server with hot-reload                                             |
-| `make setup-dev-env` | Set up development environment resources using Terraform                                   |
-
-For full command options and usage, refer to the [Makefile](Makefile).
-
-## 🛠️ Project Management
-
-| Command | What It Does |
-|---------|--------------|
-| `uvx agent-starter-pack setup-cicd` | One-command setup of entire CI/CD pipeline + infrastructure |
-| `uvx agent-starter-pack upgrade` | Auto-upgrade to latest version while preserving customizations |
-| `uvx agent-starter-pack extract` | Extract minimal, shareable version of your agent |
+https://github.com/user-attachments/assets/demo.mp4
 
 ---
 
-## Development
+## ✨ Features
 
-Edit your agent logic in `app/agent.py` and test with `make playground` - it auto-reloads on save.
-Use notebooks in `notebooks/` for prototyping and Vertex AI Evaluation.
-See the [development guide](https://googlecloudplatform.github.io/agent-starter-pack/guide/development-guide) for the full workflow.
+- **🎤 Real-time voice conversation** — Talk naturally with the AI interviewer (near-zero latency via AudioWorklet)
+- **👁️ Vision** — The AI sees your code editor in real time and comments on what you write
+- **💻 Monaco code editor** — Full-featured editor with syntax highlighting (Python, JavaScript, Java)
+- **🧠 Socratic interviewing** — The AI asks guiding questions, never gives direct answers
+- **🌐 Single container deployment** — Frontend + backend served from one Cloud Run URL
 
-## Deployment
+## 🗺️ Interview Modes
+
+| Mode | Route | Status |
+|------|-------|--------|
+| **Coding Interview** | `/coding/:problem` | ✅ Live |
+| **System Design** | `/system-design/:problem` | 🔜 Coming soon |
+| **Behavioral** | `/behavioral/:question` | 🔜 Planned |
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Cloud Run (port 8080)              │
+│                                                      │
+│  ┌──────────────┐     ┌───────────────────────────┐ │
+│  │ React SPA    │     │  FastAPI (Python)          │ │
+│  │              │────▶│                            │ │
+│  │ Monaco Editor│ WS  │  ADK Agent                 │ │
+│  │ AudioWorklet │◀────│  Gemini Live native audio  │ │
+│  │ Tailwind CSS │     │  Vertex AI                 │ │
+│  └──────────────┘     └───────────────────────────┘ │
+│       GET /*              WS /ws                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**How it works:**
+1. Frontend captures your microphone (16kHz PCM via AudioWorklet) and editor screenshots
+2. Audio + images sent as base64 over WebSocket to FastAPI backend
+3. Backend pipes everything to Gemini Live via ADK `LiveRequest` protocol
+4. Gemini responds with audio (24kHz PCM) played back via AudioWorklet — near-zero latency
+5. The AI interviewer sees your code, hears you talk, and responds naturally
+
+## 📁 Project Structure
+
+```
+mockInterview.ai/
+├── app/                          # Python backend
+│   ├── agent.py                  # ADK Agent — interviewer system instruction + Gemini Live model
+│   ├── fast_api_app.py           # FastAPI — WebSocket endpoint, serves static frontend
+│   └── app_utils/                # Telemetry (OpenTelemetry), GCS logging, Pydantic types
+├── frontend/                     # React frontend
+│   ├── src/
+│   │   ├── App.tsx               # Main app — wires LiveAPIContext with interview UI
+│   │   ├── components/interview/ # CodeEditor (Monaco), ControlBar, ProblemPane
+│   │   ├── data/problems.ts      # Coding problems with starter code (Python/JS/Java)
+│   │   ├── contexts/             # LiveAPIContext — React context for audio/WS connection
+│   │   ├── hooks/                # useLiveAPI, useScreenCapture, useWebcam
+│   │   └── utils/                # AudioWorklet recorder/streamer, WebSocket client
+│   ├── package.json              # React 18, Monaco, Tailwind v4, motion, lucide-react
+│   └── vite.config.ts            # Vite + Tailwind plugin
+├── Dockerfile                    # Single container: Python 3.11 + Node 20 multi-stage
+├── Makefile                      # install, playground, deploy, test, lint
+├── pyproject.toml                # Python deps (ADK, FastAPI, OpenTelemetry, Cloud Logging)
+├── deployment/terraform/         # Full IaC for GCP (Cloud Run, IAM, Cloud Build, GCS)
+└── .cloudbuild/                  # CI/CD pipelines (PR checks, staging, prod)
+```
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
+- [Node.js 20+](https://nodejs.org/) — For frontend build
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) — For Vertex AI + deployment
+- A GCP project with Vertex AI API enabled
+
+### Run locally
+
+```bash
+# 1. Clone
+git clone https://github.com/ChristChad-mv/mockInterview.ai.git
+cd mockInterview.ai
+
+# 2. Authenticate with GCP (needed for Vertex AI / Gemini)
+gcloud auth application-default login
+
+# 3. Install everything & launch
+make install && make playground
+```
+
+Open **http://localhost:8000** → Click **Start Interview** → Talk! 🎤
+
+### Run with Docker
+
+```bash
+docker build -t mockinterview .
+docker run -p 8080:8080 \
+  -v ~/.config/gcloud:/root/.config/gcloud \
+  mockinterview
+```
+
+### Deploy to Cloud Run
 
 ```bash
 gcloud config set project <your-project-id>
 make deploy
 ```
 
-For secure access, use Identity-Aware Proxy: `make deploy IAP=true`
-To set up your production infrastructure, run `uvx agent-starter-pack setup-cicd`.
-See the [deployment guide](https://googlecloudplatform.github.io/agent-starter-pack/guide/deployment) for details.
+---
 
-## Observability
+## 🛠️ Development
 
-Built-in telemetry exports to Cloud Trace, BigQuery, and Cloud Logging.
-See the [observability guide](https://googlecloudplatform.github.io/agent-starter-pack/guide/observability) for queries and dashboards.
+| Command | Description |
+|---------|-------------|
+| `make install` | Install Python + Node dependencies |
+| `make playground` | Launch local dev server (auto-reloads) |
+| `make build-frontend` | Build React frontend for production |
+| `make deploy` | Deploy to Cloud Run |
+| `make test` | Run unit + integration tests |
+| `make lint` | Code quality checks (ruff, codespell) |
+
+Edit the agent behavior in `app/agent.py` — the system instruction defines the interviewer personality.
+Edit the frontend in `frontend/src/` — changes auto-rebuild with `make playground`.
+
+---
+
+## 📊 Observability
+
+Built-in telemetry (OpenTelemetry → Cloud Trace, Cloud Logging, BigQuery):
+- Set `LOGS_BUCKET_NAME=gs://your-bucket` to save full conversation logs to GCS
+- All agent sessions are traced end-to-end
+- See the [observability guide](https://googlecloudplatform.github.io/agent-starter-pack/guide/observability)
+
+---
+
+## 🗓️ Roadmap
+
+- [x] Real-time voice interview with Gemini Live
+- [x] Vision — AI sees code editor
+- [x] Multi-language support (Python, JavaScript, Java)
+- [ ] URL routing: `/coding/:problem`, `/system-design/:problem`
+- [ ] System Design mode with whiteboard
+- [ ] Auth + user accounts
+- [ ] Dashboard with session history & performance tracking
+- [ ] Interview scoring & feedback report at end of session
+- [ ] Behavioral interview mode
+
+---
+
+## 🙏 Acknowledgments
+
+- Built on [Google Agent Starter Pack](https://github.com/GoogleCloudPlatform/agent-starter-pack) v0.38.0
+- Powered by [Gemini Live 2.5 Flash Native Audio](https://ai.google.dev/gemini-api/docs/live) via [Google ADK](https://google.github.io/adk-docs/)
+- Frontend audio architecture from the starter-pack's AudioWorklet implementation
