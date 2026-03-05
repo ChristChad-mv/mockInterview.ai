@@ -110,7 +110,7 @@ function BehavioralSession() {
 
       // 2) Now connect to the AI agent (waits for setupComplete)
       setInterviewStarted(true);
-      await connect();
+      await connect(config.voice);
       setSessionStartTime(Date.now());
       setConversationLog([]);
 

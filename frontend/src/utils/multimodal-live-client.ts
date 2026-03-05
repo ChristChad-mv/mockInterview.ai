@@ -112,7 +112,7 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
     this.emit("log", log);
   }
 
-  connect(newRunId?: string): Promise<boolean> {
+  connect(newRunId?: string, voice?: string): Promise<boolean> {
     const ws = new WebSocket(this.url);
 
     // Update runId if provided
@@ -173,14 +173,17 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
         this.emit("open");
 
         this.ws = ws;
-        // Send initial setup message with user_id for backend
-        const setupMessage = {
+        // Send initial setup message with user_id + voice for backend
+        const setupMessage: Record<string, unknown> = {
           user_id: this.userId || "default_user",
           setup: {
             run_id: this.runId,
             user_id: this.userId || "default_user",
           },
         };
+        if (voice) {
+          setupMessage.voice = voice;
+        }
         this._sendDirect(setupMessage);
         ws.removeEventListener("error", onError);
         ws.addEventListener("close", (ev: CloseEvent) => {

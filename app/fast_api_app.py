@@ -29,6 +29,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.adk.agents.live_request_queue import LiveRequest, LiveRequestQueue
+from google.adk.apps import App
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
@@ -38,7 +39,7 @@ from google.cloud import storage as gcs_storage
 from vertexai.agent_engines import _utils
 from websockets.exceptions import ConnectionClosedError
 
-from .agent import app as adk_app
+from .agent import app as adk_app, create_agent
 from .app_utils.telemetry import setup_telemetry
 from .app_utils.typing import Feedback
 
@@ -112,6 +113,9 @@ class AgentSession:
         self.input_queue: asyncio.Queue[dict] = asyncio.Queue()
         self.user_id: str | None = None
         self.session_id: str | None = None
+        # Voice selection — populated from the initial setup message
+        self.voice_name: str = "Puck"
+        self.setup_received = asyncio.Event()
 
     async def receive_from_client(self) -> None:
         """Listen for messages from the client and put them in the queue."""
@@ -123,14 +127,17 @@ class AgentSession:
                     data = json.loads(message["text"])
 
                     if isinstance(data, dict):
-                        # Skip setup messages - they're for backend logging only
+                        # Extract voice from setup messages, then skip them
                         if "setup" in data:
+                            self.voice_name = data.get("voice", "Puck")
                             logger.log_struct(
-                                {**data["setup"], "type": "setup"}, severity="INFO"
+                                {**data["setup"], "type": "setup", "voice": self.voice_name},
+                                severity="INFO",
                             )
                             logging.info(
-                                "Received setup message (not forwarding to agent)"
+                                f"Received setup message — voice={self.voice_name}"
                             )
+                            self.setup_received.set()
                             continue
 
                         # Forward message to agent engine
@@ -162,7 +169,21 @@ class AgentSession:
     async def run_agent(self) -> None:
         """Run the agent with the input queue using bidi_stream_query protocol."""
         try:
-            # Send setupComplete immediately
+            # ── Wait for the setup message so we know which voice to use ──
+            await self.setup_received.wait()
+            logging.info(f"Creating per-session agent with voice={self.voice_name}")
+
+            # Build a per-session agent + runner with the chosen voice
+            agent = create_agent(self.voice_name)
+            per_session_app = App(root_agent=agent, name="app")
+            per_session_runner = Runner(
+                app=per_session_app,
+                session_service=session_service,
+                artifact_service=artifact_service,
+                memory_service=memory_service,
+            )
+
+            # NOW send setupComplete — the frontend is waiting for this
             setup_complete_response: dict = {"setupComplete": {}}
             await self.websocket.send_json(setup_complete_response)
 
@@ -199,7 +220,7 @@ class AgentSession:
 
             # Forward events from agent to websocket
             async def _forward_events() -> None:
-                events_async = runner.run_live(
+                events_async = per_session_runner.run_live(
                     user_id=self.user_id,
                     session_id=self.session_id,
                     live_request_queue=live_request_queue,

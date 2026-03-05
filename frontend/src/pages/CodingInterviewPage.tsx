@@ -90,7 +90,7 @@ function InterviewSession() {
 
       // 2) Now connect to the AI agent (waits for setupComplete)
       setInterviewStarted(true);
-      await connect();
+      await connect(config.voice);
       setSessionStartTime(Date.now());
 
       // 3) Send EVERYTHING the agent needs before it speaks:

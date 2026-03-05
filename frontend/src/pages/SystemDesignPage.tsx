@@ -90,7 +90,7 @@ function SystemDesignSession() {
 
       // 2) Now connect to the AI agent (waits for setupComplete)
       setInterviewStarted(true);
-      await connect();
+      await connect(config.voice);
       setSessionStartTime(Date.now());
 
       // 3) Send EVERYTHING before the agent speaks

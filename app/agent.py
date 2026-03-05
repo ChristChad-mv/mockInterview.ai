@@ -86,14 +86,39 @@ When the candidate is practicing behavioral questions (indicated by [BEHAVIORAL 
 
 Always respond in the same language the user speaks."""
 
-root_agent = Agent(
-    name="mock_interviewer",
-    model=Gemini(
-        model="gemini-live-2.5-flash-native-audio",
-        retry_options=types.HttpRetryOptions(attempts=3),
-    ),
-    instruction=INTERVIEWER_SYSTEM_INSTRUCTION,
-    # No tools — pure voice conversation for minimal latency
-)
+VALID_VOICES = {"Puck", "Charon", "Kore", "Fenrir", "Aoede"}
+DEFAULT_VOICE = "Puck"
+
+
+def create_agent(voice_name: str = DEFAULT_VOICE) -> Agent:
+    """Create an interview agent configured with the given voice.
+
+    Called per-session so each candidate can pick a different voice.
+    """
+    if voice_name not in VALID_VOICES:
+        voice_name = DEFAULT_VOICE
+
+    return Agent(
+        name="mock_interviewer",
+        model=Gemini(
+            model="gemini-live-2.5-flash-native-audio",
+            retry_options=types.HttpRetryOptions(attempts=3),
+        ),
+        instruction=INTERVIEWER_SYSTEM_INSTRUCTION,
+        generate_content_config=types.GenerateContentConfig(
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_name,
+                    )
+                )
+            ),
+        ),
+        # No tools — pure voice conversation for minimal latency
+    )
+
+
+# Default agent (used if no voice specified)
+root_agent = create_agent(DEFAULT_VOICE)
 
 app = App(root_agent=root_agent, name="app")

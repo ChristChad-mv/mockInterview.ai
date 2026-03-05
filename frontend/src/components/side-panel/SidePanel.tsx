@@ -323,7 +323,7 @@ function SidePanel({
           <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
-            onClick={connected ? disconnect : connect}
+            onClick={connected ? disconnect : () => connect()}
           >
             <span className="material-symbols-outlined filled">
               {connected ? "pause" : "play_arrow"}

@@ -31,7 +31,7 @@ import VolMeterWorket from "../utils/worklets/vol-meter";
 export type UseLiveAPIResults = {
   client: MultimodalLiveClient;
   connected: boolean;
-  connect: () => Promise<void>;
+  connect: (voice?: string) => Promise<void>;
   disconnect: () => Promise<void>;
   volume: number;
 };
@@ -100,9 +100,9 @@ export function useLiveAPI({
     };
   }, [client]);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (voice?: string) => {
     client.disconnect();
-    await client.connect();
+    await client.connect(undefined, voice);
     // Wait for setupcomplete before resolving — so callers know the session is ready
     await new Promise<void>((resolve) => {
       const onReady = () => {
