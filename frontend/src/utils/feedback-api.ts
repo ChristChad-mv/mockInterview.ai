@@ -5,6 +5,7 @@
  */
 
 import type { FeedbackData } from '../components/feedback/FeedbackReport';
+import { getStoredPasscode } from '../contexts/AuthContext';
 
 interface FeedbackRequestParams {
   videoBlob: Blob;
@@ -22,8 +23,13 @@ export async function fetchAIFeedback(
   formData.append('problem_title', params.problemTitle);
   formData.append('duration', params.duration);
 
+  const headers: Record<string, string> = {};
+  const passcode = getStoredPasscode();
+  if (passcode) headers['X-Passcode'] = passcode;
+
   const response = await fetch('/api/feedback', {
     method: 'POST',
+    headers,
     body: formData,
   });
 

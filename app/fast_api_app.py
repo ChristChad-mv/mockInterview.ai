@@ -23,9 +23,9 @@ from pathlib import Path
 
 import backoff
 import google.auth
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.adk.agents.live_request_queue import LiveRequest, LiveRequestQueue
@@ -67,6 +67,9 @@ logging.basicConfig(level=logging.INFO)
 
 setup_telemetry()
 _, project_id = google.auth.default()
+
+# Access passcode for demo gating (judges get this code)
+ACCESS_PASSCODE = os.environ.get("ACCESS_PASSCODE", "GEMINI2026")
 
 # GCS bucket for interview recordings
 RECORDINGS_BUCKET = os.environ.get("RECORDINGS_BUCKET", f"{project_id}-interview-recordings")
@@ -260,9 +263,27 @@ def get_connect_and_run_callable(websocket: WebSocket) -> Callable:
     return connect_and_run
 
 
+@app.post("/api/verify-passcode")
+async def verify_passcode(request: Request) -> dict:
+    """Verify the demo access passcode."""
+    body = await request.json()
+    code = body.get("passcode", "")
+    if code == ACCESS_PASSCODE:
+        logging.info("🔓 Passcode verified")
+        return {"ok": True}
+    logging.warning(f"🔒 Invalid passcode attempt")
+    raise HTTPException(status_code=401, detail="Invalid passcode")
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle new websocket connections."""
+    # Check passcode from query params
+    passcode = websocket.query_params.get("passcode", "")
+    if passcode != ACCESS_PASSCODE:
+        await websocket.close(code=4001, reason="Invalid passcode")
+        logging.warning("🔒 WebSocket rejected — invalid passcode")
+        return
     await websocket.accept()
     logging.info("🎙️  New interview session connected")
     connect_and_run = get_connect_and_run_callable(websocket)
@@ -312,8 +333,11 @@ async def generate_video_feedback(
     mode: str = Form(...),
     problem_title: str = Form(...),
     duration: str = Form("0 min"),
+    x_passcode: str | None = Header(None, alias="X-Passcode"),
 ) -> dict:
     """Analyze an interview recording with Gemini 3.0 Flash and return structured feedback."""
+    if x_passcode != ACCESS_PASSCODE:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
     try:
         video_bytes = await video.read()
         video_size_mb = len(video_bytes) / (1024 * 1024)

@@ -3,8 +3,10 @@
  */
 
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
+import LoginPage from "./pages/LoginPage";
 
 // Lazy load heavy pages (tldraw alone is ~2MB)
 const CodingInterviewPage = lazy(() => import("./pages/CodingInterviewPage"));
@@ -23,18 +25,31 @@ function PageLoader() {
   );
 }
 
+/** Redirect to /login if not authenticated */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/coding/:problemId" element={<CodingInterviewPage />} />
-          <Route path="/system-design/:problemId" element={<SystemDesignPage />} />
-          <Route path="/behavioral/:questionId" element={<BehavioralPage />} />
-        </Routes>
-      </Suspense>
+      <AuthProvider>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* Protected */}
+            <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+            <Route path="/coding/:problemId" element={<RequireAuth><CodingInterviewPage /></RequireAuth>} />
+            <Route path="/system-design/:problemId" element={<RequireAuth><SystemDesignPage /></RequireAuth>} />
+            <Route path="/behavioral/:questionId" element={<RequireAuth><BehavioralPage /></RequireAuth>} />
+          </Routes>
+        </Suspense>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
