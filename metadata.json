@@ -1,0 +1,5 @@
+{
+  "name": "MockInterview.ai",
+  "description": "A LeetCode-style mock interview platform where an AI assistant watches your screen, listens to your thought process, and conducts a real-time technical interview.",
+  "requestFramePermissions": ["microphone", "camera", "display-capture"]
+}
