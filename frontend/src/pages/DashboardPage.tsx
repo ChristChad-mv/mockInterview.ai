@@ -24,11 +24,15 @@ import {
   CheckCircle2,
   Play,
   Minus,
+  User,
+  Save,
+  FileText,
 } from 'lucide-react';
 import { problems } from '../data/problems';
 import { systemDesignProblems } from '../data/systemDesignProblems';
 import { behavioralQuestions } from '../data/behavioralQuestions';
 import { getHistory, getStats, getBestScore } from '../utils/interview-history';
+import { getSavedConfig, saveConfig, type InterviewConfig } from '../utils/interview-config';
 
 /* ── Mode config ── */
 const MODES = [
@@ -186,6 +190,21 @@ export default function DashboardPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
   const stats = useMemo(() => getStats(), []);
   const history = useMemo(() => getHistory(), []);
+  
+  const [config, setConfig] = useState<InterviewConfig>(getSavedConfig());
+  const [displayName, setDisplayName] = useState(getSavedConfig().candidateName || '');
+  const [inputName, setInputName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveName = () => {
+    if (!inputName.trim()) return;
+    setIsSaving(true);
+    const updatedConfig = { ...getSavedConfig(), candidateName: inputName.trim() };
+    saveConfig(updatedConfig);
+    setDisplayName(inputName.trim());
+    setInputName('');
+    setTimeout(() => setIsSaving(false), 800);
+  };
 
   // Build the unified problem list
   const allProblems = useMemo(() => {
@@ -245,11 +264,39 @@ export default function DashboardPage() {
 
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-10">
         {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-black tracking-tight">Your Dashboard</h1>
-          <p className="mt-2 text-gray-400">
-            Track your progress, revisit problems, and keep improving.
-          </p>
+        <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 mb-10">
+          <div>
+            <h1 className="text-3xl font-black tracking-tight">
+              {(inputName || displayName) ? `Welcome back, ${inputName || displayName}` : 'Your Dashboard'}
+            </h1>
+            <p className="mt-2 text-gray-400">
+              Track your progress, revisit problems, and keep improving.
+            </p>
+          </div>
+
+          {/* Profile Name Input */}
+          <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] p-2 pl-4">
+            <User size={16} className="text-gray-500" />
+            <input 
+              type="text"
+              placeholder="Update your name"
+              className="bg-transparent border-none focus:outline-none text-sm text-white w-40 placeholder:text-gray-600"
+              value={inputName}
+              onChange={(e) => setInputName(e.target.value)}
+            />
+            <button
+              onClick={handleSaveName}
+              disabled={isSaving || !inputName.trim()}
+              className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold hover:bg-blue-500 transition-all disabled:opacity-50"
+            >
+              {isSaving ? 'Saved!' : (
+                <>
+                  <Save size={14} />
+                  Save
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Stats Row */}

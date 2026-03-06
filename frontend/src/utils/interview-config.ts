@@ -103,6 +103,9 @@ export interface InterviewConfig {
   language: string;
   style: string;
   duration: number;
+  candidateName?: string;
+  resume?: string;
+  jobDescription?: string;
 }
 
 const STORAGE_KEY = 'mockinterview-config';
@@ -112,20 +115,21 @@ export function getDefaultConfig(): InterviewConfig {
     voice: 'Puck', 
     language: 'en', 
     style: 'friendly',
-    duration: 30 
+    duration: 30,
+    candidateName: ''
   };
 }
 
 export function getSavedConfig(): InterviewConfig {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return { ...getDefaultConfig(), ...JSON.parse(raw) };
   } catch { /* ignore */ }
   return getDefaultConfig();
 }
 
 export function saveConfig(config: InterviewConfig): void {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
 }
 
 /**
@@ -137,6 +141,10 @@ export function buildSessionConfigMessage(config: InterviewConfig): string {
   const style = INTERVIEW_STYLES.find((s) => s.id === config.style);
 
   const parts: string[] = [];
+
+  if (config.candidateName) {
+    parts.push(`[CANDIDATE NAME] The candidate's name is "${config.candidateName}". Please greet them personally at the beginning of the interview.`);
+  }
 
   if (lang && lang.id !== 'en') {
     parts.push(
