@@ -2,7 +2,7 @@
 
 > **AI-powered mock technical interviews with real-time voice, vision, and structured feedback.**
 
-An AI interviewer that **talks to you**, **watches your screen in real time**, and **gives video-based feedback** — just like sitting across from a senior engineer at Google. Built with [Google ADK](https://google.github.io/adk-docs/) + [Gemini Live 2.5 Flash Native Audio](https://ai.google.dev/gemini-api/docs/live) for the **Gemini Live Agent Challenge 2026**.
+An AI interviewer that **talks to you**, **watches your screen in real time**, and **gives video-based feedback** — just like sitting across from a senior engineer at Google. Built with [Google ADK](https://google.github.io/adk-docs/) + [Gemini Live 2.5 Flash Native Audio](https://ai.google.dev/gemini-api/docs/live).
 
 https://github.com/user-attachments/assets/demo.mp4
 
@@ -19,7 +19,9 @@ https://github.com/user-attachments/assets/demo.mp4
 | 🎭 | **4 interview styles** | Friendly, Tough, FAANG-style, or Casual — adapts the AI's personality |
 | 📹 | **AI video feedback** | Records your screen → Gemini 3.1 Flash Lite analyzes the full video → structured scores & tips |
 | 📊 | **Dashboard & history** | Track your progress, scores, streaks, and revisit past sessions |
+| ⏱️ | **Customizable duration** | Choose 15-60 min sessions; AI paces the interview to finish on time |
 | 🔐 | **Passcode access gate** | Control access for hackathon demos / judges |
+| 📐 | **Detailed Architecture** | Comprehensive diagrams and technical deep-dives in [ARCHITECTURE.md](./ARCHITECTURE.md) |
 
 ---
 
@@ -54,8 +56,9 @@ Before each session, a configuration screen lets you customize:
 | **Voice** | ⚡ Puck · 🎭 Charon · ☀️ Kore · 🐺 Fenrir · 🎵 Aoede |
 | **Language** | 🇬🇧 EN · 🇫🇷 FR · 🇪🇸 ES · 🇧🇷 PT · 🇩🇪 DE · 🇯🇵 JA · 🇰🇷 KO · 🇨🇳 ZH · 🇮🇳 HI · 🇸🇦 AR |
 | **Style** | 😊 Friendly · 💪 Tough · 🏢 FAANG · ☕ Casual |
+| **Duration** | ⏱️ 15 min · 30 min · 45 min · 60 min |
 
-Voice is configured **per-session** via ADK's `SpeechConfig` — each WebSocket connection creates a dedicated agent with the chosen voice.
+Voice is configured **per-session** via ADK's `SpeechConfig`. The AI is aware of the chosen duration and receives periodic hidden time updates to help it pace the session.
 
 ---
 
@@ -114,12 +117,23 @@ User clicks "Start Interview"
 ┌─ Feedback displayed ────────────────────── scores, strengths, improvements, next steps
 ```
 
+### ⏱️ Smart Time Management
+
+The platform includes a real-time "Time Manager" logic:
+- **Dynamic Pacing**: The AI receives silent `[SYSTEM]` updates every few minutes with the remaining time. It will naturally transition you through the interview phases to ensure you finish within the limit.
+- **Grace Period**: When the timer hits zero, the AI is notified to wrap up. It has a **10-second grace period** to say its goodbyes before the connection is automatically severed and feedback generation begins.
+- **Extendable Sessions**: Need more time? Click the **"+" button** next to the timer to instantly add **5 minutes** to your current session. The AI is immediately notified of the extension.
+
 ### Key Technical Details
 
 - **Audio pipeline**: AudioWorklet records at 16kHz → base64 PCM chunks → WebSocket → ADK LiveRequest. Gemini responds with 24kHz PCM → AudioStreamer with VU meter worklet
+
 - **Vision**: `getDisplayMedia({ preferCurrentTab: true })` captures the browser tab. Periodic JPEG snapshots sent as `realtimeInput` so the AI sees code/diagrams
+
 - **Video recording**: `MediaRecorder` records the tab's `MediaStream` → WebM blob → uploaded to GCS for Gemini 3.1 analysis
+
 - **Voice switching**: Each WebSocket connection extracts the chosen voice from the setup message, creates a fresh `Agent` with `generate_content_config.speech_config.voice_config`, and a per-session `Runner`
+
 - **Feedback model**: Uses `gemini-3.1-flash-lite-preview` via Google AI (not Vertex AI) with explicit endpoint URL to avoid the global `GOOGLE_GENAI_USE_VERTEXAI=True`
 
 ---
@@ -274,8 +288,11 @@ Built-in telemetry (OpenTelemetry → Cloud Trace, Cloud Logging, BigQuery):
 - [x] Per-session voice switching via ADK SpeechConfig
 - [x] Video-based AI feedback with Gemini 3.1 Flash Lite
 - [x] Dashboard with stats, streaks, and interview history
-- [x] Passcode-based access control
 - [x] Proper session flow: screen share → connect → context → agent speaks
+- [x] Customizable interview duration (15, 30, 45, 60 min)
+- [x] Real-time AI time awareness and dynamic pacing
+- [x] "Add time" (+5 min) extension button
+- [x] Comprehensive Architecture Documentation with Mermaid diagrams
 - [ ] More coding problems (15+ across Easy/Medium/Hard)
 - [ ] Persistent user accounts with OAuth
 - [ ] Resume upload → AI generates tailored behavioral questions
