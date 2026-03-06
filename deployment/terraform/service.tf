@@ -14,17 +14,14 @@
 
 # Get project information to access the project number
 data "google_project" "project" {
-  for_each = local.deploy_project_ids
-
-  project_id = local.deploy_project_ids[each.key]
+  project_id = var.project_id
 }
 
-resource "google_cloud_run_v2_service" "app" {
-  for_each = local.deploy_project_ids
 
+resource "google_cloud_run_v2_service" "app" {
   name                = var.project_name
   location            = var.region
-  project             = each.value
+  project             = var.project_id
   deletion_protection = false
   ingress             = "INGRESS_TRAFFIC_ALL"
   labels = {
@@ -33,19 +30,17 @@ resource "google_cloud_run_v2_service" "app" {
 
   template {
     containers {
-      # Placeholder, will be replaced by the CI/CD pipeline
       image = "us-docker.pkg.dev/cloudrun/container/hello"
       resources {
         limits = {
           cpu    = "4"
           memory = "8Gi"
         }
-        cpu_idle = false
       }
 
       env {
         name  = "LOGS_BUCKET_NAME"
-        value = google_storage_bucket.logs_data_bucket[each.value].name
+        value = google_storage_bucket.logs_data_bucket.name
       }
 
       env {
@@ -54,7 +49,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
 
-    service_account                = google_service_account.app_sa[each.key].email
+    service_account = google_service_account.app_sa.email
     max_instance_request_concurrency = 40
 
     scaling {
@@ -80,6 +75,6 @@ resource "google_cloud_run_v2_service" "app" {
 
   # Make dependencies conditional to avoid errors.
   depends_on = [
-    google_project_service.deploy_project_services,
+    resource.google_project_service.services,
   ]
 }

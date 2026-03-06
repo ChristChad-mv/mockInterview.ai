@@ -18,19 +18,9 @@ variable "project_name" {
   default     = "mockinterview-agent"
 }
 
-variable "prod_project_id" {
+variable "project_id" {
   type        = string
-  description = "**Production** Google Cloud Project ID for resource deployment."
-}
-
-variable "staging_project_id" {
-  type        = string
-  description = "**Staging** Google Cloud Project ID for resource deployment."
-}
-
-variable "cicd_runner_project_id" {
-  type        = string
-  description = "Google Cloud Project ID where CI/CD pipelines will execute."
+  description = "Target Google Cloud Project ID for resource deployment."
 }
 
 variable "region" {
@@ -39,15 +29,16 @@ variable "region" {
   default     = "us-central1"
 }
 
-variable "host_connection_name" {
-  description = "Name of the host connection to create in Cloud Build"
+variable "telemetry_logs_filter" {
   type        = string
-  default     = "mockinterview-agent-github-connection"
+  description = "Log Sink filter for capturing telemetry data. Captures logs with the `traceloop.association.properties.log_type` attribute set to `tracing`."
+  default     = "labels.service_name=\"mockinterview-agent\" labels.type=\"agent_telemetry\""
 }
 
-variable "repository_name" {
-  description = "Name of the repository you'd like to connect to Cloud Build"
+variable "feedback_logs_filter" {
   type        = string
+  description = "Log Sink filter for capturing feedback data. Captures logs where the `log_type` field is `feedback`."
+  default     = "jsonPayload.log_type=\"feedback\" jsonPayload.service_name=\"mockinterview-agent\""
 }
 
 variable "app_sa_roles" {
@@ -63,68 +54,3 @@ variable "app_sa_roles" {
     "roles/serviceusage.serviceUsageConsumer",
   ]
 }
-
-variable "cicd_roles" {
-  description = "List of roles to assign to the CICD runner service account in the CICD project"
-  type        = list(string)
-  default = [
-    "roles/run.invoker",
-    "roles/storage.admin",
-    "roles/aiplatform.user",
-    "roles/discoveryengine.editor",
-    "roles/logging.logWriter",
-    "roles/cloudtrace.agent",
-    "roles/artifactregistry.writer",
-    "roles/cloudbuild.builds.builder"
-  ]
-}
-
-variable "cicd_sa_deployment_required_roles" {
-  description = "List of roles to assign to the CICD runner service account for the Staging and Prod projects."
-  type        = list(string)
-  default = [
-    "roles/run.developer",    
-    "roles/iam.serviceAccountUser",
-    "roles/aiplatform.user",
-    "roles/storage.admin"
-  ]
-}
-
-variable "repository_owner" {
-  description = "Owner of the Git repository - username or organization"
-  type        = string
-}
-
-
-variable "github_app_installation_id" {
-  description = "GitHub App Installation ID for Cloud Build"
-  type        = string
-  default     = null
-}
-
-
-variable "github_pat_secret_id" {
-  description = "GitHub PAT Secret ID created by gcloud CLI"
-  type        = string
-  default     = null
-}
-
-variable "create_cb_connection" {
-  description = "Flag indicating if a Cloud Build connection already exists"
-  type        = bool
-  default     = false
-}
-
-variable "create_repository" {
-  description = "Flag indicating whether to create a new Git repository"
-  type        = bool
-  default     = false
-}
-
-
-variable "feedback_logs_filter" {
-  type        = string
-  description = "Log Sink filter for capturing feedback data. Captures logs where the `log_type` field is `feedback`."
-  default     = "jsonPayload.log_type=\"feedback\" jsonPayload.service_name=\"mockinterview-agent\""
-}
-

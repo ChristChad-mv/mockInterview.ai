@@ -127,14 +127,8 @@ The platform includes a real-time "Time Manager" logic:
 ### Key Technical Details
 
 - **Audio pipeline**: AudioWorklet records at 16kHz → base64 PCM chunks → WebSocket → ADK LiveRequest. Gemini responds with 24kHz PCM → AudioStreamer with VU meter worklet
-
 - **Vision**: `getDisplayMedia({ preferCurrentTab: true })` captures the browser tab. Periodic JPEG snapshots sent as `realtimeInput` so the AI sees code/diagrams
-
 - **Video recording**: `MediaRecorder` records the tab's `MediaStream` → WebM blob → uploaded to GCS for Gemini 3.1 analysis
-
-- **Voice switching**: Each WebSocket connection extracts the chosen voice from the setup message, creates a fresh `Agent` with `generate_content_config.speech_config.voice_config`, and a per-session `Runner`
-
-- **Feedback model**: Uses `gemini-3.1-flash-lite-preview` via Google AI (not Vertex AI) with explicit endpoint URL to avoid the global `GOOGLE_GENAI_USE_VERTEXAI=True`
 
 ---
 
@@ -143,53 +137,24 @@ The platform includes a real-time "Time Manager" logic:
 ```
 mockInterview.ai/
 ├── app/                              # Python backend
-│   ├── agent.py                      # ADK Agent factory — create_agent(voice) with SpeechConfig
-│   ├── fast_api_app.py               # FastAPI — WS, feedback API, passcode auth, SPA serving
-│   └── app_utils/                    # Telemetry (OpenTelemetry), GCS logging, Pydantic types
+│   ├── agent.py                      # ADK Agent factory
+│   ├── fast_api_app.py               # FastAPI — WS, feedback API
+│   └── app_utils/                    # Telemetry, GCS, Pydantic types
 │
 ├── frontend/                         # React frontend (Vite + Tailwind v4)
 │   ├── src/
-│   │   ├── App.tsx                   # Routes: /, /login, /dashboard, /coding, /system-design, /behavioral
-│   │   ├── pages/
-│   │   │   ├── LandingPage.tsx       # Hero + features + CTA
-│   │   │   ├── LoginPage.tsx         # Passcode gate
-│   │   │   ├── DashboardPage.tsx     # Stats, history, problem grid with completion tracking
-│   │   │   ├── CodingInterviewPage.tsx     # Monaco editor + voice + screen share
-│   │   │   ├── SystemDesignPage.tsx        # tldraw whiteboard + voice + screen share
-│   │   │   └── BehavioralPage.tsx          # Voice-only STAR coaching + conversation log
-│   │   ├── components/
-│   │   │   ├── interview/
-│   │   │   │   ├── PreInterviewSetup.tsx   # Voice / language / style selector
-│   │   │   │   ├── CodeEditor.tsx          # Monaco wrapper with snapshot capture
-│   │   │   │   ├── ProblemPane.tsx         # Problem description panel
-│   │   │   │   └── ControlBar.tsx          # Timer, mute, disconnect controls
-│   │   │   ├── side-panel/                 # Debug side panel (logs, transcription)
-│   │   │   └── transcription-preview/      # Live transcription overlay
-│   │   ├── contexts/
-│   │   │   ├── LiveAPIContext.tsx           # React context wrapping useLiveAPI
-│   │   │   └── AuthContext.tsx             # Passcode auth state (sessionStorage)
-│   │   ├── hooks/
-│   │   │   ├── use-live-api.ts             # WebSocket + audio connect/disconnect
-│   │   │   └── use-tab-recorder.ts         # MediaRecorder for screen capture → WebM
-│   │   ├── utils/
-│   │   │   ├── multimodal-live-client.ts   # WebSocket client — voice param in connect()
-│   │   │   ├── audio-streamer.ts           # PCM 24kHz playback with VU meter
-│   │   │   ├── audio-recorder.ts           # PCM 16kHz capture via AudioWorklet
-│   │   │   ├── interview-config.ts         # Voices, languages, styles config
-│   │   │   ├── interview-history.ts        # localStorage-based session history
-│   │   │   └── feedback-api.ts             # Video upload + Gemini 3.1 feedback
-│   │   └── data/
-│   │       ├── problems.ts                 # 3 coding problems (Easy → Medium)
-│   │       ├── systemDesignProblems.ts      # 6 system design problems
-│   │       └── behavioralQuestions.ts       # 9 behavioral questions (6 categories)
-│   ├── package.json                  # React 18, Monaco, tldraw, Tailwind v4, motion, lucide
-│   └── vite.config.ts               # Vite + Tailwind CSS plugin
+│   │   ├── App.tsx                   # Routes
+│   │   ├── pages/                    # Landing, Dashboard, Interview types
+│   │   ├── components/               # Timer, CodeEditor, ProblemPane
+│   │   ├── hooks/                    # use-live-api, use-tab-recorder
+│   │   └── utils/                    # multimodal-live-client, audio-recorder
+│   ├── package.json
+│   └── vite.config.ts
 │
-├── Dockerfile                        # Multi-stage: Python 3.11 + Node 20 → single container
-├── Makefile                          # install, playground, deploy, test, lint
-├── pyproject.toml                    # ADK, FastAPI, OpenTelemetry, Cloud Logging
-├── deployment/terraform/             # Full IaC (Cloud Run, IAM, Cloud Build, GCS)
-└── .cloudbuild/                      # CI/CD (PR checks, staging, prod)
+├── Dockerfile                        # Multi-stage build
+├── Makefile                          # install, playground, deploy, setup-dev-env
+├── pyproject.toml                    # Python deps
+└── deployment/terraform/             # Infrastructure as Code (Single project)
 ```
 
 ---
@@ -200,9 +165,9 @@ mockInterview.ai/
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
 - [Node.js 20+](https://nodejs.org/) — For frontend build
-- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) — For Vertex AI + deployment
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) — For deployment
 - A GCP project with **Vertex AI API** enabled
-- A **Google AI API key** (for the feedback endpoint — `GOOGLE_AI_API_KEY` env var)
+- A **Google AI API key** (for feedback — `GOOGLE_AI_API_KEY` env var)
 
 ### Run locally
 
@@ -211,17 +176,17 @@ mockInterview.ai/
 git clone https://github.com/ChristChad-mv/mockInterview.ai.git
 cd mockInterview.ai
 
-# 2. Authenticate with GCP (needed for Vertex AI / Gemini Live)
+# 2. Authenticate
 gcloud auth application-default login
 
-# 3. Set your Google AI API key (for video feedback)
+# 3. Set API Key
 export GOOGLE_AI_API_KEY=your-key-here
 
-# 4. Install everything & launch
+# 4. Launch
 make install && make playground
 ```
 
-Open **http://localhost:8000** → Enter passcode → Pick a problem → Talk! 🎤
+Open **http://localhost:8000**
 
 ### Environment Variables
 
@@ -242,25 +207,49 @@ docker run -p 8080:8080 \
   mockinterview
 ```
 
-### Deploy to Cloud Run
+### ☁️ Cloud Deployment (For Judges)
+
+Automated deployment via Terraform and Makefile.
+
+#### 1. Setup Infrastructure
 
 ```bash
-gcloud config set project <your-project-id>
+# Authenticate
+gcloud auth application-default login
+gcloud auth login
+
+# Set Project
+gcloud config set project <YOUR_PROJECT_ID>
+
+# Provision GCP Resources (IAM, APIs, GCS)
+make setup-dev-env
+```
+
+#### 2. Deploy Application
+
+```bash
+# Build and deploy to Cloud Run
+export GOOGLE_AI_API_KEY=your-key-here
 make deploy
 ```
+
+#### 3. Access
+
+After deployment, the `make deploy` command will output the **Service URL**.
+
+- Set the `GEMINI_API_KEY` (Google AI Studio key) and `ACCESS_PASSCODE` in the Cloud Run service environment variables for full functionality.
 
 ---
 
 ## 🛠️ Development
 
 | Command | Description |
-|---------|-------------|
-| `make install` | Install Python + Node dependencies |
-| `make playground` | Launch local dev server (auto-reloads) |
-| `make build-frontend` | Build React frontend for production |
+| :--- | :--- |
+| `make install` | Install all dependencies |
+| `make playground` | Launch local dev server |
 | `make deploy` | Deploy to Cloud Run |
-| `make test` | Run unit + integration tests |
-| `make lint` | Code quality checks (ruff, codespell) |
+| `make setup-dev-env` | Provision GCP via Terraform |
+| `make lint` | Code quality checks |
 
 - **Agent behavior** → edit `app/agent.py` (system instruction + voice config)
 - **Interview problems** → edit files in `frontend/src/data/`
