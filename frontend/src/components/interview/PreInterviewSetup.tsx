@@ -12,11 +12,13 @@ import {
   Play,
   Loader2,
   ChevronDown,
+  Clock,
 } from 'lucide-react';
 import {
   VOICES,
   INTERVIEW_LANGUAGES,
   INTERVIEW_STYLES,
+  DURATION_OPTIONS,
   getSavedConfig,
   saveConfig,
   type InterviewConfig,
@@ -153,6 +155,33 @@ export function PreInterviewSetup({
               >
                 <span>{l.flag}</span>
                 <span className="text-xs font-medium">{l.label}</span>
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        <Section
+          icon={<Clock size={16} />}
+          title="Interview duration"
+          isOpen={expandedSection === 'duration'}
+          onToggle={() => toggle('duration')}
+          accentText={a.text}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {DURATION_OPTIONS.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => setConfig((c) => ({ ...c, duration: d.id }))}
+                className={`flex flex-col items-start gap-1 rounded-xl border px-3 py-2 text-left transition-all cursor-pointer ${
+                  config.duration === d.id
+                    ? `${a.border} ${a.bg} text-white`
+                    : 'border-white/10 bg-white/[0.03] text-gray-400 hover:bg-white/[0.06]'
+                }`}
+              >
+                <span className="text-xs font-bold">{d.label}</span>
+                <span className="text-[10px] text-gray-500 leading-tight">
+                  {d.description}
+                </span>
               </button>
             ))}
           </div>

@@ -15,6 +15,7 @@ import { fetchAIFeedback } from '../utils/feedback-api';
 import { addRecord } from '../utils/interview-history';
 import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
 import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
+import { Timer } from "../components/interview/Timer";
 import {
   behavioralQuestions,
   BehavioralQuestion,
@@ -63,6 +64,7 @@ function BehavioralSession() {
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
+  const [durationInMins, setDurationInMins] = useState<number>(getSavedConfig().duration || 30);
 
   const [audioRecorder] = useState(() => new AudioRecorder());
   const { startRecording, stopRecording } = useTabRecorder();
@@ -111,6 +113,7 @@ function BehavioralSession() {
       // 2) Now connect to the AI agent (waits for setupComplete)
       setInterviewStarted(true);
       await connect(config.voice);
+      setDurationInMins(config.duration);
       setSessionStartTime(Date.now());
       setConversationLog([]);
 
@@ -195,6 +198,24 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
       audioRecorder.off('data', onData);
     };
   }, [connected, client, isMicActive, audioRecorder]);
+
+  // ── Periodic Time Update to AI ──
+  useEffect(() => {
+    if (!connected || !interviewStarted || !durationInMins) return;
+
+    // Send about 5 updates throughout the session (e.g., every 3 mins for 15 min session)
+    const intervalMs = (durationInMins * 60 * 1000) / 5;
+
+    const interval = setInterval(() => {
+      if (sessionStartTime) {
+        const elapsedS = Math.floor((Date.now() - sessionStartTime) / 1000);
+        const remainingM = Math.max(0, durationInMins - Math.floor(elapsedS / 60));
+        client.send([{ text: `[SYSTEM] Reminder: There are approximately ${remainingM} minutes remaining in this session.` }]);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [connected, interviewStarted, durationInMins, sessionStartTime, client]);
 
   // ── Speaking detection ──
   useEffect(() => {
@@ -331,13 +352,25 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
               ))}
             </select>
 
-            {connected && sessionStartTime && (
-              <div className="flex items-center gap-1.5 rounded-full bg-black/20 px-3 py-1.5 border border-white/5">
-                <Clock size={12} className="text-gray-500" />
-                <span className="text-xs font-mono text-gray-400">
-                  {elapsed}
-                </span>
-              </div>
+            {interviewStarted && (
+               <Timer 
+                initialMinutes={durationInMins} 
+                isActive={connected && !showFeedback} 
+                onAddTime={(newTotalSeconds) => {
+                  if (connected) {
+                    client.send([{ text: `[SYSTEM] The candidate has added 5 minutes to the session. Total time remaining: ${Math.floor(newTotalSeconds / 60)} minutes.` }]);
+                  }
+                }}
+                onTimeUp={() => {
+                  if (connected) {
+                    client.send([{ text: `[SYSTEM] TIME IS UP. Briefly thank the candidate and let them know their feedback is being generated. You have 10 seconds before the session cuts off.` }]);
+                    // Grace period for AI to say goodbye
+                    setTimeout(() => {
+                      handleDisconnect();
+                    }, 10000);
+                  }
+                }}
+              />
             )}
 
             <div className="flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5 border border-white/5">

@@ -20,7 +20,8 @@ import { FeedbackReport, FeedbackData } from "../components/feedback/FeedbackRep
 import { useTabRecorder } from "../hooks/use-tab-recorder";
 import { fetchAIFeedback } from "../utils/feedback-api";
 import { addRecord } from "../utils/interview-history";import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
-import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
+import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig, getDefaultConfig } from '../utils/interview-config';
+import { Timer } from "../components/interview/Timer";
 // WebSocket URL: in production, same host. In dev, connect to backend on :8000.
 const isDevelopment = window.location.port === "3000";
 const defaultHost = isDevelopment
@@ -57,6 +58,7 @@ function InterviewSession() {
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
+  const [durationInMins, setDurationInMins] = useState<number>(getSavedConfig().duration || 30);
 
   const editorRef = useRef<CodeEditorHandle>(null);
   const [audioRecorder] = useState(() => new AudioRecorder());
@@ -91,6 +93,7 @@ function InterviewSession() {
       // 2) Now connect to the AI agent (waits for setupComplete)
       setInterviewStarted(true);
       await connect(config.voice);
+      setDurationInMins(config.duration);
       setSessionStartTime(Date.now());
 
       // 3) Send EVERYTHING the agent needs before it speaks:
@@ -185,6 +188,24 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
       audioRecorder.off("data", onData);
     };
   }, [connected, client, isMicActive, audioRecorder]);
+
+  // ── Periodic Time Update to AI ──
+  useEffect(() => {
+    if (!connected || !interviewStarted || !durationInMins) return;
+
+    // Send about 5 updates throughout the session (e.g., every 3 mins for 15 min session)
+    const intervalMs = (durationInMins * 60 * 1000) / 5;
+
+    const interval = setInterval(() => {
+      if (sessionStartTime) {
+        const elapsedS = Math.floor((Date.now() - sessionStartTime) / 1000);
+        const remainingM = Math.max(0, durationInMins - Math.floor(elapsedS / 60));
+        client.send([{ text: `[SYSTEM] Reminder: There are approximately ${remainingM} minutes remaining in this session.` }]);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [connected, interviewStarted, durationInMins, sessionStartTime, client]);
 
   // ── Speaking detection from volume ──
   useEffect(() => {
@@ -372,6 +393,27 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
                 Vision Active
               </span>
             </div>
+          )}
+
+          {interviewStarted && (
+             <Timer 
+              initialMinutes={durationInMins} 
+              isActive={connected && !showFeedback} 
+              onAddTime={(newTotalSeconds) => {
+                if (connected) {
+                  client.send([{ text: `[SYSTEM] The candidate has added 5 minutes to the session. Total time remaining: ${Math.floor(newTotalSeconds / 60)} minutes.` }]);
+                }
+              }}
+              onTimeUp={() => {
+                if (connected) {
+                  client.send([{ text: `[SYSTEM] TIME IS UP. Briefly thank the candidate and let them know their feedback is being generated. You have 10 seconds before the session cuts off.` }]);
+                  // Grace period for AI to say goodbye
+                  setTimeout(() => {
+                    handleDisconnect();
+                  }, 10000);
+                }
+              }}
+            />
           )}
         </div>
       </header>

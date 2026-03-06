@@ -83,17 +83,37 @@ export const INTERVIEW_STYLES: StyleOption[] = [
   },
 ];
 
+// ── Duration Options ──
+export interface DurationOption {
+  id: number;
+  label: string;
+  description: string;
+}
+
+export const DURATION_OPTIONS: DurationOption[] = [
+  { id: 15, label: '15 min', description: 'Quick screening' },
+  { id: 30, label: '30 min', description: 'Standard interview' },
+  { id: 45, label: '45 min', description: 'Deep dive' },
+  { id: 60, label: '60 min', description: 'Full session' },
+];
+
 // ── Combined Config ──
 export interface InterviewConfig {
   voice: string;
   language: string;
   style: string;
+  duration: number;
 }
 
 const STORAGE_KEY = 'mockinterview-config';
 
 export function getDefaultConfig(): InterviewConfig {
-  return { voice: 'Puck', language: 'en', style: 'friendly' };
+  return { 
+    voice: 'Puck', 
+    language: 'en', 
+    style: 'friendly',
+    duration: 30 
+  };
 }
 
 export function getSavedConfig(): InterviewConfig {
@@ -126,6 +146,16 @@ export function buildSessionConfigMessage(config: InterviewConfig): string {
 
   if (style) {
     parts.push(`[INTERVIEW STYLE] ${style.systemPromptHint}`);
+  }
+
+  if (config.duration) {
+    parts.push(`[TIME MANAGEMENT] 
+This interview is time-boxed to exactly ${config.duration} minutes. 
+As the interviewer, you are responsible for:
+1. MONITORING TIME: You will receive periodic hidden [SYSTEM] messages indicating the remaining time. 
+2. PACING: Use these updates to pace the conversation. Do not mention the exact system messages, but naturally transition the candidate (e.g., "We have about half the time left, let's look at the implementation").
+3. NO INTERRUPTION: These system messages will not stop your speech. Continue your current thought, then adjust your next turn based on the update.
+4. WRAP-UP: Ensure you finish with a summary before the ${config.duration} minutes are up.`);
   }
 
   return parts.join('\n');
