@@ -29,7 +29,8 @@ const INTERVIEW_MODES = [
   {
     id: "system-design",
     title: "System Design",
-    description: "Design scalable systems on a whiteboard with guided architecture discussions",
+    description:
+      "Design scalable systems on a whiteboard with guided architecture discussions",
     icon: Brain,
     color: "purple",
     available: true,
@@ -38,7 +39,8 @@ const INTERVIEW_MODES = [
   {
     id: "behavioral",
     title: "Behavioral",
-    description: "Practice STAR method responses with real-time AI feedback and follow-ups",
+    description:
+      "Practice STAR method responses with real-time AI feedback and follow-ups",
     icon: MessageSquare,
     color: "green",
     available: true,
@@ -101,7 +103,7 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-6">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate("/dashboard")}
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             Dashboard
@@ -129,21 +131,19 @@ export default function LandingPage() {
             Powered by Gemini Live + Google ADK
           </div>
 
-          <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-[1.1] max-w-4xl">
+          <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-[1.1] max-w-4xl mx-auto">
             Ace your next
             <br />
-            <span className="bg-gradient-to-r from-blue-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-400 via-blue-500 to-purple-500 bg-clip-text text-transparent px-1">
               technical interview
             </span>
           </h1>
 
-          <p className="mt-6 text-lg sm:text-xl text-gray-400 max-w-2xl leading-relaxed">
+          <p className="mt-6 text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed text-balance">
             Practice with an AI interviewer that{" "}
             <span className="text-white font-medium">talks to you</span>,{" "}
-            <span className="text-white font-medium">
-              watches your code
-            </span>{" "}
-            in real-time, and gives{" "}
+            <span className="text-white font-medium">watches your code</span> in
+            real-time, and gives{" "}
             <span className="text-white font-medium">instant feedback</span> —
             just like a real interview at a top tech company.
           </p>
@@ -173,11 +173,39 @@ export default function LandingPage() {
           transition={{ delay: 1 }}
           className="mt-16"
         >
-          <ChevronDown
-            size={24}
-            className="text-gray-600 animate-bounce"
-          />
+          <ChevronDown size={24} className="text-gray-600 animate-bounce" />
         </motion.div>
+      </section>
+
+      {/* ── Trust Bar ── */}
+      <section className="relative z-10 border-y border-white/5 bg-white/[0.01] py-10 overflow-hidden">
+        <div className="max-w-6xl mx-auto px-6">
+          <p className="text-center text-xs font-medium uppercase tracking-[0.2em] text-gray-500 mb-8">
+            Designed for engineering standards at
+          </p>
+          <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-8">
+            <div className="flex items-center gap-3 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300 cursor-default">
+              <img src="/google.png" alt="Google" className="h-6 w-auto" />
+              <span className="text-lg font-bold tracking-tight text-gray-400">Google</span>
+            </div>
+            <div className="flex items-center gap-3 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300 cursor-default">
+              <img src="/meta.png" alt="Meta" className="h-6 w-auto" />
+              <span className="text-lg font-bold tracking-tight text-gray-400">Meta</span>
+            </div>
+            <div className="flex items-center gap-3 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300 cursor-default">
+              <img src="/amazon.png" alt="Amazon" className="h-6 w-auto" />
+              <span className="text-lg font-bold tracking-tight text-gray-400">Amazon</span>
+            </div>
+            <div className="flex items-center gap-3 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300 cursor-default">
+              <img src="/netflix.png" alt="Netflix" className="h-6 w-auto" />
+              <span className="text-lg font-bold tracking-tight text-gray-400">Netflix</span>
+            </div>
+            <div className="flex items-center gap-3 opacity-30 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-300 cursor-default">
+              <img src="/openai.png" alt="OpenAI" className="h-6 w-auto" />
+              <span className="text-lg font-bold tracking-tight text-gray-400">OpenAI</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ── Features Grid ── */}
@@ -201,6 +229,63 @@ export default function LandingPage() {
               </p>
             </motion.div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Audience Section ── */}
+      <section className="relative z-10 px-6 py-20 max-w-6xl mx-auto border-t border-white/5">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">
+            Built for those who reach higher
+          </h2>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Whether you're starting your career or aiming for Lead Engineer, 
+            MockInterview.ai adapts to your level.
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="group rounded-3xl border border-white/5 bg-white/[0.01] p-8 hover:bg-white/[0.03] hover:border-blue-500/20 transition-all duration-500">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-green-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/20 text-green-400">
+                <Zap size={24} />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold mb-3 group-hover:text-green-400 transition-colors">Students & Grads</h3>
+            <p className="text-sm text-gray-400 leading-relaxed text-balance">
+              Master the fundamentals. Practice DSA, learn how to think out loud, 
+              and build the confidence needed for your first placement.
+            </p>
+          </div>
+          
+          <div className="group rounded-3xl border border-white/5 bg-white/[0.01] p-8 hover:bg-white/[0.03] hover:border-blue-500/20 transition-all duration-500">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border border-blue-500/20 text-blue-400">
+                <Brain size={24} />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold mb-3 group-hover:text-blue-400 transition-colors">Experienced Pros</h3>
+            <p className="text-sm text-gray-400 leading-relaxed text-balance">
+              Target Staff+ roles at Big Tech. Refine complex system designs, 
+              distributed systems architecture, and leadership storytelling.
+            </p>
+          </div>
+          
+          <div className="group rounded-3xl border border-white/5 bg-white/[0.01] p-8 hover:bg-white/[0.03] hover:border-blue-500/20 transition-all duration-500">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-purple-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500/20 to-fuchsia-500/10 border border-purple-500/20 text-purple-400">
+                <Code2 size={24} />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold mb-3 group-hover:text-purple-400 transition-colors">Career Switchers</h3>
+            <p className="text-sm text-gray-400 leading-relaxed text-balance">
+              Transition into engineering with specialized coaching. Get comfortable 
+              explaining technical concepts in a low-pressure environment.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -266,7 +351,7 @@ export default function LandingPage() {
                   </h3>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      'difficulty' in problem
+                      "difficulty" in problem
                         ? problem.difficulty === "Easy"
                           ? "bg-green-500/15 text-green-400"
                           : problem.difficulty === "Medium"
@@ -275,7 +360,11 @@ export default function LandingPage() {
                         : "bg-purple-500/15 text-purple-400"
                     }`}
                   >
-                    {'difficulty' in problem ? problem.difficulty : ('category' in problem ? (problem as any).category : '')}
+                    {"difficulty" in problem
+                      ? problem.difficulty
+                      : "category" in problem
+                        ? (problem as any).category
+                        : ""}
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 line-clamp-2 mb-4">
@@ -284,11 +373,11 @@ export default function LandingPage() {
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <Terminal size={12} />
                   <span>
-                    {activeMode.id === 'coding'
-                      ? 'Python · JavaScript · Java'
-                      : 'category' in problem
+                    {activeMode.id === "coding"
+                      ? "Python · JavaScript · Java"
+                      : "category" in problem
                         ? (problem as any).category
-                        : 'Whiteboard'}
+                        : "Whiteboard"}
                   </span>
                 </div>
                 {/* Hover arrow */}

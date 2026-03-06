@@ -486,6 +486,12 @@ async def serve_frontend_spa(full_path: str) -> FileResponse | dict:
 
     # Serve index.html for all other routes (SPA routing)
     index_file = frontend_build_dir / "index.html"
+    
+    # NEW: Check if the file exists in the build directory (for robots.txt, sitemaps, or root public assets)
+    requested_file = frontend_build_dir / full_path
+    if requested_file.is_file():
+        return FileResponse(str(requested_file))
+
     if index_file.exists():
         return FileResponse(str(index_file))
     logging.warning(
