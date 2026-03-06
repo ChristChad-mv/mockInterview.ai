@@ -44,11 +44,16 @@ from .app_utils.telemetry import setup_telemetry
 from .app_utils.typing import Feedback
 
 app = FastAPI()
+# Security: Tighter CORS for production. 
+# Allow localhost for development and your specific domain for production.
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 # Get the path to the frontend build directory
