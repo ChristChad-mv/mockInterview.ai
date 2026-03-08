@@ -14,6 +14,8 @@ https://github.com/user-attachments/assets/demo.mp4
 |---|---------|---------|
 | 🎤 | **Real-time voice conversation** | Talk naturally — near-zero latency via AudioWorklet (16kHz record / 24kHz playback) |
 | 👁️ | **Live screen vision** | The AI watches your code editor / whiteboard in real time and comments on what it sees |
+| 📄 | **Personalized RAG** | Upload your CV and paste a Job Description. AI uses **Gemini File Search** to tailor questions to your profile |
+| 👤 | **Persistent Identity** | Automatically generates a unique **JudgeID** per browser, linking your CV and history |
 | 🗣️ | **5 AI voices** | Choose from Puck, Charon, Kore, Fenrir, or Aoede — each with a distinct personality |
 | 🌍 | **10 languages** | Interview in English, French, Spanish, Portuguese, German, Japanese, Korean, Chinese, Hindi, or Arabic |
 | 🎭 | **4 interview styles** | Friendly, Tough, FAANG-style, or Casual — adapts the AI's personality |
@@ -40,10 +42,10 @@ Interactive **tldraw whiteboard** — draw architecture diagrams while the AI gu
 - Design a URL Shortener • Design a Chat System • Design Twitter / News Feed • Design a Rate Limiter • Design YouTube / Video Streaming • Design a Parking Lot System
 
 ### 🎯 Behavioral (`/behavioral/:question`)
-Voice-only mode with **STAR framework** coaching. The AI asks follow-ups, pushes for specifics, and evaluates your storytelling.
+Voice-only mode with **STAR framework** coaching. Features a **Full Mock Interview** option where the AI acts as a recruiter from a specific company (using your CV + JD).
 
-**9 questions included:**
-- Tell Me About Yourself • Working with a Difficult Teammate • Leading Without Authority • A Project That Failed • Delivering Under a Tight Deadline • Disagreeing with Your Manager • Cross-Team Collaboration • Solving an Ambiguous Problem • Mentoring or Teaching Others
+**10 options included:**
+- **Full Mock Interview (Customizable)** • Tell Me About Yourself • Working with a Difficult Teammate • Leading Without Authority • A Project That Failed • Delivering Under a Tight Deadline • Disagreeing with Your Manager • Cross-Team Collaboration • Solving an Ambiguous Problem • Mentoring or Teaching Others
 
 ---
 
@@ -52,11 +54,12 @@ Voice-only mode with **STAR framework** coaching. The AI asks follow-ups, pushes
 Before each session, a configuration screen lets you customize:
 
 | Setting | Options |
-|---------|---------|
+| --- | --- |
 | **Voice** | ⚡ Puck · 🎭 Charon · ☀️ Kore · 🐺 Fenrir · 🎵 Aoede |
 | **Language** | 🇬🇧 EN · 🇫🇷 FR · 🇪🇸 ES · 🇧🇷 PT · 🇩🇪 DE · 🇯🇵 JA · 🇰🇷 KO · 🇨🇳 ZH · 🇮🇳 HI · 🇸🇦 AR |
 | **Style** | 😊 Friendly · 💪 Tough · 🏢 FAANG · ☕ Casual |
 | **Duration** | ⏱️ 15 min · 30 min · 45 min · 60 min |
+| **Target Role** | 💼 (Optional) Paste a **Job Description** to tailor the session |
 
 Voice is configured **per-session** via ADK's `SpeechConfig`. The AI is aware of the chosen duration and receives periodic hidden time updates to help it pace the session.
 
@@ -76,10 +79,12 @@ Voice is configured **per-session** via ADK's `SpeechConfig`. The AI is aware of
 │  │ • AudioWorklet     │  JSON  │ • Voice selection (5 voices)│ │
 │  │ • Tab Recorder     │        │ • Video upload → GCS        │ │
 │  │ • Tailwind CSS v4  │        │ • Feedback via Gemini 3.1   │ │
+│  │ • AudioWorklet     │  JSON  │ • cv_search Tool (RAG)      │ │
+│  │ • JudgeID Storage  │        │ • Gemini 3.1 Flash (Lite)   │ │
 │  └───────────────────┘        └────────────────────────────┘ │
 │       GET /*                    WS /ws                        │
+│                                 POST /api/resume/upload       │
 │                                 POST /api/feedback            │
-│                                 POST /api/verify-passcode     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -282,20 +287,28 @@ Built-in telemetry (OpenTelemetry → Cloud Trace, Cloud Logging, BigQuery):
 - [x] Real-time AI time awareness and dynamic pacing
 - [x] "Add time" (+5 min) extension button
 - [x] Comprehensive Architecture Documentation with Mermaid diagrams
-- [ ] More coding problems (15+ across Easy/Medium/Hard)
+- [x] Behavioral interview + STAR coach
+- [x] Resume upload → AI uses RAG to tailor questions (cv_search tool)
+- [x] Persistent JudgeID per user
+- [x] Full Mock Interview mode with Job Description support
+- [x] More coding problems (15+ across Easy/Medium/Hard)
+- [X] Resume upload → AI generates tailored behavioral questions
 - [ ] Persistent user accounts with OAuth
-- [ ] Resume upload → AI generates tailored behavioral questions
 
 ---
 
 ## 🧰 Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+| --- | --- |
 | **Live Interview AI** | Gemini Live 2.5 Flash Native Audio via Google ADK |
+| **RAG / Search AI** | Gemini 3.1 Flash Lite Preview + File Search Tool |
 | **Feedback AI** | Gemini 3.1 Flash Lite Preview (video analysis) |
 | **Backend** | Python 3.11, FastAPI, uvicorn |
 | **Frontend** | React 18, TypeScript, Vite |
+| **Database** | Gemini File Search Store (Indexed CVs) |
+| **Storage** | Google Cloud Storage (Video Recording) |
+| **Identity** | JudgeID (LocalStorage persistent UUID) |
 | **Styling** | Tailwind CSS v4, motion/react, lucide-react |
 | **Code Editor** | Monaco Editor (VS Code engine) |
 | **Whiteboard** | tldraw |

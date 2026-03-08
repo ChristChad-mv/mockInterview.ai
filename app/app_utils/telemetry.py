@@ -14,12 +14,12 @@
 
 import logging
 import os
-
+from .config import settings
 
 def setup_telemetry() -> str | None:
     """Configure OpenTelemetry and GenAI telemetry with GCS upload."""
 
-    bucket = os.environ.get("LOGS_BUCKET_NAME")
+    bucket = settings.LOGS_BUCKET_NAME
     capture_content = os.environ.get(
         "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "false"
     )
