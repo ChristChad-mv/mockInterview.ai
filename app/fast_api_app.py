@@ -42,11 +42,14 @@ from websockets.exceptions import ConnectionClosedError
 from .agent import app as adk_app, create_agent
 from .app_utils.telemetry import setup_telemetry
 from .app_utils.typing import Feedback
+from .app_utils.file_search import upload_resume_to_store, check_operation_status
+from .app_utils.identity import get_store_name_for_user
+from .app_utils.config import settings
 
 app = FastAPI()
 # Security: Tighter CORS for production. 
 # Allow localhost for development and your specific domain for production.
-ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,23 +75,28 @@ logger = logging_client.logger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 setup_telemetry()
-_, project_id = google.auth.default()
+project_id = settings.PROJECT_ID
 
 # Access passcode for demo gating (judges get this code)
-ACCESS_PASSCODE = os.environ.get("ACCESS_PASSCODE", "GEMINI2026")
+ACCESS_PASSCODE = settings.ACCESS_PASSCODE
 
 # GCS bucket for interview recordings
-RECORDINGS_BUCKET = os.environ.get("RECORDINGS_BUCKET", f"{project_id}-interview-recordings")
+RECORDINGS_BUCKET = settings.RECORDINGS_BUCKET
+# GCS client for interview recordings
 try:
     gcs_client = gcs_storage.Client(project=project_id)
 except Exception:
     gcs_client = None
     logging.warning("GCS client not available — video uploads will be stored locally")
 
+# Temporary directory for resume uploads
+UPLOAD_DIR = current_dir / "temp_uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
 
 # Initialize ADK services
 session_service = InMemorySessionService()
-logs_bucket_name = os.environ.get("LOGS_BUCKET_NAME")
+logs_bucket_name = settings.LOGS_BUCKET_NAME
 artifact_service = (
     GcsArtifactService(bucket_name=logs_bucket_name)
     if logs_bucket_name
@@ -135,12 +143,13 @@ class AgentSession:
                         # Extract voice from setup messages, then skip them
                         if "setup" in data:
                             self.voice_name = data.get("voice", "Puck")
+                            self.user_id = data.get("user_id") # Capture user_id here
                             logger.log_struct(
-                                {**data["setup"], "type": "setup", "voice": self.voice_name},
+                                {**data["setup"], "type": "setup", "voice": self.voice_name, "user_id": self.user_id},
                                 severity="INFO",
                             )
                             logging.info(
-                                f"Received setup message — voice={self.voice_name}"
+                                f"Received setup message — voice={self.voice_name}, user_id={self.user_id}"
                             )
                             self.setup_received.set()
                             continue
@@ -178,8 +187,8 @@ class AgentSession:
             await self.setup_received.wait()
             logging.info(f"Creating per-session agent with voice={self.voice_name}")
 
-            # Build a per-session agent + runner with the chosen voice
-            agent = create_agent(self.voice_name)
+            # Build a per-session agent + runner with the chosen voice and user identity
+            agent = create_agent(self.voice_name, user_id=self.user_id)
             per_session_app = App(root_agent=agent, name="app")
             per_session_runner = Runner(
                 app=per_session_app,
@@ -192,11 +201,15 @@ class AgentSession:
             setup_complete_response: dict = {"setupComplete": {}}
             await self.websocket.send_json(setup_complete_response)
 
-            # Wait for first request with user_id
+            # Wait for first request (contains context)
             first_request = await self.input_queue.get()
-            self.user_id = first_request.get("user_id")
+            
+            # Ensure we have user_id (if not from setup, maybe from first request)
             if not self.user_id:
-                raise ValueError("The first request must have a user_id.")
+                self.user_id = first_request.get("user_id")
+            
+            if not self.user_id:
+                raise ValueError("No user_id provided in setup or first request.")
 
             self.session_id = first_request.get("session_id")
             first_live_request = first_request.get("live_request")
@@ -395,16 +408,17 @@ async def generate_video_feedback(
         )
 
         # Use the Gemini API (API key) for 3.x models — not available on Vertex AI yet
-        # IMPORTANT: agent.py sets GOOGLE_GENAI_USE_VERTEXAI=True globally, which
+        # IMPORTANT: agent.py/config.py sets GOOGLE_GENAI_USE_VERTEXAI=True globally, which
         # makes genai.Client route to Vertex AI even with api_key=. We must
         # explicitly force the Google AI endpoint via http_options.
-        gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+        gemini_api_key = settings.GEMINI_API_KEY
         if not gemini_api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required for feedback analysis")
 
         client = genai.Client(
             api_key=gemini_api_key,
-            http_options={"api_version": "v1beta", "url": "https://generativelanguage.googleapis.com"},
+            vertexai=False,
+            http_options={"api_version": "v1beta"},
         )
 
         # Always use inline bytes (GCS URIs only work with Vertex AI)
@@ -518,6 +532,40 @@ def collect_feedback(feedback: Feedback) -> dict[str, str]:
     logger.log_struct(feedback.model_dump(), severity="INFO")
     return {"status": "success"}
 
+
+# ── Resume Management ──
+
+@app.post("/api/resume/upload")
+async def upload_resume(
+    file: UploadFile = File(...),
+    judge_id: str = Form(...),
+    x_passcode: str | None = Header(None, alias="X-Passcode"),
+):
+    """Uploads a CV to the user's FileSearchStore and waits for indexing."""
+    if x_passcode != ACCESS_PASSCODE:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    file_path = UPLOAD_DIR / f"{uuid.uuid4()}_{file.filename}"
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Blocking call: Indexing CV
+        upload_resume_to_store(judge_id, str(file_path), file.filename)
+        
+        return {
+            "ok": True,
+            "filename": file.filename
+        }
+    except Exception as e:
+        logging.error(f"Resume upload/indexing failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if file_path.exists():
+            os.remove(file_path)
+
+# Main execution
 
 # Main execution
 if __name__ == "__main__":
