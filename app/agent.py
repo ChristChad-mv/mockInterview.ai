@@ -27,7 +27,7 @@ if settings.USE_VERTEXAI:
     
     vertexai.init(project=settings.PROJECT_ID, location=settings.LOCATION)
 
-from .app_utils.system_prompts.v1.system_prompt import INTERVIEWER_SYSTEM_INSTRUCTION
+from .prompts.v1.system_prompt import INTERVIEWER_SYSTEM_INSTRUCTION
 
 
 VALID_VOICES = {"Puck", "Charon", "Kore", "Fenrir", "Aoede"}

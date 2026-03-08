@@ -42,9 +42,8 @@ class Config:
         # File Search Settings
         self.FILE_SEARCH_STORE_NAME = os.environ.get("FILE_SEARCH_STORE_NAME", "mockinterview-global-store")
 
-
-# DO NOT set GOOGLE_API_KEY globally here, or ADK will try to use AI Studio for the Live Agent
-# which doesn't support Gemini 2.5 Live yet.
+        # Feedback Model Settings
+        self.FEEDBACK_MODEL = os.environ.get("FEEDBACK_MODEL", "gemini-3.1-flash-lite-preview")
 
 settings = Config()
 

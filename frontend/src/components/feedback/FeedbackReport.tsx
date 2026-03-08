@@ -30,6 +30,8 @@ export interface FeedbackData {
   strengths: string[];
   improvements: string[];
   nextSteps: string[];
+  isSessionValid?: boolean;
+  insignificanceReason?: string | null;
   transcript?: string;
 }
 
@@ -174,13 +176,15 @@ export const FeedbackReport: FC<FeedbackReportProps> = ({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 cursor-pointer"
     >
       <motion.div
         initial={{ opacity: 0, y: 40, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0d1117] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0d1117] shadow-2xl cursor-default"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0d1117]/95 backdrop-blur-md rounded-t-3xl">
@@ -204,12 +208,23 @@ export const FeedbackReport: FC<FeedbackReportProps> = ({
           </div>
         </div>
 
-        <div className="p-6 space-y-8">
-          {/* Overall Score */}
-          <div className="flex flex-col items-center text-center">
-            <ScoreRing score={feedback.overallScore} />
-            <p className="mt-3 text-sm text-gray-400">Overall Performance</p>
+        {!feedback.isSessionValid ? (
+          <div className="p-12 flex flex-col items-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500 mb-2">
+              <TrendingDown size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-white">Session Too Short</h3>
+            <p className="text-gray-400 text-sm max-w-sm">
+              {feedback.insignificanceReason || "This interview session was too brief for a comprehensive AI analysis. Try to stay longer and interact more to get detailed feedback!"}
+            </p>
           </div>
+        ) : (
+          <div className="p-6 space-y-8">
+            {/* Overall Score */}
+            <div className="flex flex-col items-center text-center">
+              <ScoreRing score={feedback.overallScore} />
+              <p className="mt-3 text-sm text-gray-400">Overall Performance</p>
+            </div>
 
           {/* Category Breakdown */}
           <div>
@@ -302,11 +317,15 @@ export const FeedbackReport: FC<FeedbackReportProps> = ({
             </ol>
           </div>
         </div>
+      )}
 
         {/* Footer */}
         <div className="sticky bottom-0 flex items-center justify-between px-6 py-4 border-t border-white/10 bg-[#0d1117]/95 backdrop-blur-md rounded-b-3xl">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => {
+              onClose();
+              navigate('/dashboard');
+            }}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors cursor-pointer"
           >
             <ArrowLeft size={16} />
