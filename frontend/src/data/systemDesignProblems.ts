@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — systemDesignProblems.ts
+ */
+
 export interface SystemDesignProblem {
   id: string;
   title: string;

@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — behavioralQuestions.ts
+ */
+
 export interface BehavioralQuestion {
   id: string;
   title: string;

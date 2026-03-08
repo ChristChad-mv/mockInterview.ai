@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — problems.ts
+ */
+
 export type Language = 'python' | 'javascript' | 'java';
 
 export const LANGUAGES: { value: Language; label: string }[] = [

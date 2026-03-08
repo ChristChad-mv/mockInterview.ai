@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — ControlBar.tsx
+ */
+
 import { FC } from 'react';
 import { Mic, MicOff, Play, Square, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';

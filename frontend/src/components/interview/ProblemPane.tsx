@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — ProblemPane.tsx
+ */
+
 import { FC } from 'react';
 import { Problem } from '../../data/problems';
 import { motion } from 'motion/react';

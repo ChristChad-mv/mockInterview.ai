@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — CodeEditor.tsx
+ */
+
 import { useRef, useImperativeHandle, forwardRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 

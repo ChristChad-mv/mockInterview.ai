@@ -1,5 +1,9 @@
+"""
+MockInterview.ai — agent.py
+Auto-generated or generic module.
+"""
+
 # ruff: noqa
-# Copyright 2026 Google LLC
 
 """MockInterview.ai — ADK agent for live technical coding interviews."""
 

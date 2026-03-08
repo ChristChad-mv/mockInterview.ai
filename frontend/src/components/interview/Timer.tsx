@@ -1,3 +1,7 @@
+/**
+ * MockInterview.ai — Timer.tsx
+ */
+
 import { useState, useEffect } from "react";
 import { Clock, AlertTriangle, Plus } from "lucide-react";
 import { motion } from "motion/react";
