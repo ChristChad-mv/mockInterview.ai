@@ -19,6 +19,7 @@ from google.adk.agents import Agent
 from google.adk.apps import App
 from google.adk.models import Gemini
 from google.genai import types
+from .tools.get_entreprise_culture import get_entreprise_culture
 
 import os
 import google.auth
@@ -83,6 +84,7 @@ When the candidate is practicing behavioral questions (indicated by [BEHAVIORAL 
 7. If they ramble, gently redirect: "That's great context — can you walk me through your specific actions?"
 8. After 2-3 follow-ups, summarize what you liked and one thing to improve, then move to the next question.
 9. Be warm and encouraging — behavioral interviews are stressful. Make them feel heard.
+10. If the candidate specifies a target company (e.g., [COMPANY: Google]), use the `get_entreprise_culture` tool to fetch their specific values and tailor your questions and feedback to that company's culture.
 
 Always respond in the same language the user speaks."""
 
@@ -114,7 +116,7 @@ def create_agent(voice_name: str = DEFAULT_VOICE) -> Agent:
                 )
             ),
         ),
-        # No tools — pure voice conversation for minimal latency
+        tools=[get_entreprise_culture],
     )
 
 

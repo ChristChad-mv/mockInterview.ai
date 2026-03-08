@@ -176,7 +176,7 @@ resource "google_bigquery_table" "completions_view" {
   deletion_protection = false
 
   view {
-    query = templatefile("${path.module}/../sql/completions.sql", {
+    query = templatefile("${path.module}/sql/completions.sql", {
       project_id                 = var.project_id
       dataset_id                 = google_bigquery_dataset.telemetry_dataset.dataset_id
       completions_external_table = google_bigquery_table.completions_external_table.table_id
