@@ -145,8 +145,19 @@ dmypy.json
 .idea
 
 # User-specific files
-.terraform*
-.Terraform*
+# Terraform
+.terraform/
+.terraform.*
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# .terraform.lock.hcl is usually COMMITTED to ensure provider version consistency
 
 
 tmp*
@@ -193,7 +204,6 @@ Thumbs.db
 tests/load_test/.results/*.html
 tests/load_test/.results/*.csv
 .locust_env
-my_env.tfvars
 .saved_chats
 .env
 .requirements.txt
