@@ -3,13 +3,9 @@ MockInterview.ai — Company Culture Tool
 A tool to retrieve specific company culture information for a given company name.
 """
 
-import sys
-import os
+from ..app_utils.data.company_cultures import COMPANY_CULTURES
 
-# Add the parent directory to sys.path so we can import app.company_cultures
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from company_cultures import COMPANY_CULTURES
 
 def get_entreprise_culture(company_name: str) -> str:
     """
