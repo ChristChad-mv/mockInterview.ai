@@ -11,26 +11,27 @@ graph TD
     User((Candidate))
     
     subgraph "Frontend (React + Vite)"
-        UI[UI Components / Monaco Editor]
-        Audio[AudioWorklet / MediaStream]
-        Vision[Screen Capture Stream]
-        Client[WebSocket Client / ADK SDK]
+        UI["UI Components / Monaco Editor"]
+        Audio["AudioWorklet / MediaStream"]
+        Vision["Screen Capture Stream"]
+        Client["WebSocket Client / Gemini Live Client"]
     end
 
-    subgraph "Backend (FastAPI / Python)"
-        WS_Handler[WebSocket Handler]
-        Auth[Passcode Verification]
-        GCS_Logic[Google Cloud Storage Logic]
+    subgraph "Backend (FastAPI / ADK Agent)"
+        WS_Handler["WebSocket Handler"]
+        ADK["ADK Agent (Sequential)"]
+        CV_Search["CV Search Tool (RAG)"]
+        Culture_Tool["Company Culture Tool"]
     end
 
     subgraph "External AI Services (Google Cloud)"
-        GeminiLive[Gemini Live API / Native Audio]
-        Gemini31[Gemini 3.1 Flash-Lite / Feedback Gen]
-        Vertex[Vertex AI Platform]
+        GeminiLive["Gemini 2.5 Live API"]
+        GeminiFlash["Gemini 3.1 Flash-Lite (Analysis)"]
+        FileSearch["Gemini File Search (CV Data)"]
     end
 
     subgraph "Persistence & Storage"
-        GCS[(Google Cloud Storage)]
+        GCS["Google Cloud Storage (Recordings)"]
     end
 
     User <--> UI
@@ -39,13 +40,24 @@ graph TD
     Vision <--> Client
     
     Client <--> WS_Handler
-    WS_Handler <--> GeminiLive
+    WS_Handler <--> ADK
+    ADK <--> GeminiLive
     
-    WS_Handler --> GCS_Logic
-    GCS_Logic --> GCS
+    ADK --> CV_Search
+    CV_Search --> FileSearch
+    ADK --> Culture_Tool
     
-    GCS --> Gemini31
-    Gemini31 --> WS_Handler
+    ADK --> GCS
+    GCS --> GeminiFlash
+    GeminiFlash --> WS_Handler
+
+    classDef tech fill:#3b82f6,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef internal fill:#1e1e2e,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef cloud fill:#4285F4,stroke:#fff,stroke-width:1px,color:#fff;
+    
+    class Client,WS_Handler,ADK internal;
+    class GeminiLive,GeminiFlash,FileSearch cloud;
+    class UI,Audio,Vision tech;
 ```
 
 ---
@@ -58,13 +70,18 @@ This diagram shows the real-time flow of multimodal data followed by the asynchr
 sequenceDiagram
     participant U as Candidate
     participant C as Frontend (Client)
-    participant S as Backend (FastAPI)
+    participant S as Backend (FastAPI / ADK)
     participant GL as Gemini Live API
+    participant CV as File Search (CV)
     participant G3 as Gemini 3.1 Flash-Lite
 
     U->>C: Starts Interview
     C->>S: WebSocket Connection Request
     S-->>C: Connection Established
+    
+    Note over S,CV: Pre-Interview RAG Initialization
+    S->>CV: cv_search(User Profile)
+    CV-->>S: Contextual Data (History/Skills)
     
     loop Real-time Interview
         U->>C: Speaks (Audio Input)
@@ -78,10 +95,10 @@ sequenceDiagram
     end
 
     U->>C: Ends Session
-    C->>S: Post Feedback Request
+    C->>S: Request Final Analysis
     S->>S: Upload Recording to GCS
-    S->>G3: Send GCS URI for Analysis
-    G3-->>S: Return JSON Feedback Report
+    S->>G3: Analyze Video Metadata + Content
+    G3-->>S: Return Structured JSON Feedback
     S-->>C: Display Feedback Dashboard
 ```
 
@@ -126,8 +143,9 @@ graph TD
 | **User Audio** | Continuous | `AudioWorklet` (16kHz) | Direct Voice communication |
 | **AI Audio** | Real-time | `Native Audio` (Bidi) | Zero-latency human-like response |
 | **Code Vision** | Every 2s | `MediaStream` -> `JPEG` | Real-time code analysis & advice |
+| **CV Context** | Once/Session | `Gemini File Search` | Personalizing questions to candidate's background |
 | **Whiteboard** | Change-based | `tldraw` Snapshot | Visualizing architectural patterns |
-| **Session State** | Event-based | `FastAPI WebSockets` | Orchestration & Orchestration |
+| **Session State** | Event-based | `FastAPI WebSockets` | Live orchestration & state sync |
 
 ---
 
