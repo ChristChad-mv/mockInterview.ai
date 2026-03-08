@@ -24,6 +24,7 @@ import { fetchAIFeedback } from '../utils/feedback-api';
 import { addRecord } from '../utils/interview-history';
 import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
 import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
+import { getJudgeId } from "../utils/identity";
 import { Timer } from "../components/interview/Timer";
 
 // WebSocket URL
@@ -137,7 +138,8 @@ You are in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through requirement
     audioRecorder.stop();
     setIsMicActive(true);
     setIsVisionActive(false);
-    setInterviewStarted(false);
+    // NOTE: Do NOT set interviewStarted=false here — we need the interview
+    // session DOM to stay mounted so the feedback overlay can render.
     if (visionIntervalRef.current) {
       clearInterval(visionIntervalRef.current);
       visionIntervalRef.current = null;
@@ -165,14 +167,20 @@ You are in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through requirement
           problemId: selectedProblem.id,
           problemTitle: selectedProblem.title,
           overallScore: feedback.overallScore,
-          categories: feedback.categories.map(c => ({ name: c.name, score: c.score })),
+          categories: feedback.categories.map(c => ({ name: c.name, score: c.score, comment: c.comment })),
           duration,
+          strengths: feedback.strengths,
+          improvements: feedback.improvements,
+          nextSteps: feedback.nextSteps,
         });
       } catch (e) {
         console.error('Failed to generate AI feedback:', e);
+        setInterviewStarted(false);
       } finally {
         setIsGeneratingFeedback(false);
       }
+    } else {
+      setInterviewStarted(false);
     }
   }, [disconnect, audioRecorder, sessionStartTime, selectedProblem, stopRecording]);
 
@@ -536,6 +544,7 @@ You are now in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through high-le
         onClose={() => {
           setShowFeedback(false);
           setFeedbackData(null);
+          setInterviewStarted(false);
         }}
       />
     )}
@@ -545,7 +554,7 @@ You are now in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through high-le
 
 export default function SystemDesignPage() {
   return (
-    <LiveAPIProvider url={defaultUri} userId="user1">
+    <LiveAPIProvider url={defaultUri} userId={getJudgeId()}>
       <SystemDesignSession />
     </LiveAPIProvider>
   );

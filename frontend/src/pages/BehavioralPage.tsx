@@ -15,6 +15,7 @@ import { fetchAIFeedback } from '../utils/feedback-api';
 import { addRecord } from '../utils/interview-history';
 import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
 import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
+import { getJudgeId } from "../utils/identity";
 import { Timer } from "../components/interview/Timer";
 import {
   behavioralQuestions,
@@ -119,7 +120,27 @@ function BehavioralSession() {
 
       // 3) Send EVERYTHING before the agent speaks
       const configMsg = buildSessionConfigMessage(config);
-      const questionContext = `[BEHAVIORAL INTERVIEW — SESSION START]
+      
+      const jobContext = config.jobDescription 
+        ? `[TARGET JOB DESCRIPTION]\n${config.jobDescription}\n\nUse this JD to tailor your questions and expectations.`
+        : '';
+
+      let questionContext = '';
+      if (selectedQuestion.id === 'full-behavioral-mock') {
+        questionContext = `[BEHAVIORAL INTERVIEW — FULL MOCK SESSION]
+You are conducting a full mock behavioral interview. 
+${jobContext}
+
+1. Start by asking the candidate to introduce themselves.
+2. Then, pick 3 distinct behavioral areas (relevant to the JD if provided) and ask one major question for each.
+3. For each question, dig deep with follow-ups to ensure they use the STAR method.
+4. Total duration should be around ${durationInMins} minutes.
+
+You are in BEHAVIORAL INTERVIEW mode. Greet the candidate warmly and start the session.`;
+      } else {
+        questionContext = `[BEHAVIORAL INTERVIEW — SINGLE QUESTION]
+${jobContext}
+
 The candidate is practicing: "${selectedQuestion.title}" (${selectedQuestion.category}).
 
 Question: ${selectedQuestion.description}
@@ -128,6 +149,7 @@ Possible follow-ups to ask later:
 ${selectedQuestion.followUps.map((q, i) => `${i + 1}. ${q}`).join('\n')}
 
 You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, and ask them to answer using the STAR method. Be warm and encouraging.`;
+      }
 
       const fullContext = [configMsg, questionContext].filter(Boolean).join('\n\n');
       client.send([{ text: fullContext }]);
@@ -145,7 +167,8 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
     await disconnect();
     audioRecorder.stop();
     setIsMicActive(true);
-    setInterviewStarted(false);
+    // NOTE: Do NOT set interviewStarted=false here — we need the interview
+    // session DOM to stay mounted so the feedback overlay can render.
 
     const duration = sessionStartTime
       ? `${Math.floor((Date.now() - sessionStartTime) / 60000)} min`
@@ -169,14 +192,22 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
           problemId: selectedQuestion.id,
           problemTitle: selectedQuestion.title,
           overallScore: feedback.overallScore,
-          categories: feedback.categories.map(c => ({ name: c.name, score: c.score })),
+          categories: feedback.categories.map(c => ({ name: c.name, score: c.score, comment: c.comment })),
           duration,
+          strengths: feedback.strengths,
+          improvements: feedback.improvements,
+          nextSteps: feedback.nextSteps,
         });
       } catch (e) {
         console.error('Failed to generate AI feedback:', e);
+        // Only reset if feedback failed — let user go back to setup
+        setInterviewStarted(false);
       } finally {
         setIsGeneratingFeedback(false);
       }
+    } else {
+      // No video blob — no feedback to show, go back to setup
+      setInterviewStarted(false);
     }
   }, [disconnect, audioRecorder, sessionStartTime, selectedQuestion, stopRecording]);
 
@@ -300,6 +331,7 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
           mode="behavioral"
           accentColor="green-500"
           isConnecting={isConnecting}
+          showJobDescription={true}
           onStart={handleStartWithConfig}
         />
       </div>
@@ -404,36 +436,14 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
           {/* Right: Conversation Space */}
           <div className="flex-1 flex flex-col items-center justify-center bg-[#0a0a0f] relative">
             {!connected ? (
-              /* Pre-session state */
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-center text-center px-8"
-              >
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-green-500/10 border border-green-500/20 mb-6">
-                  <MessageSquare size={40} className="text-green-400" />
-                </div>
-                <h2 className="text-2xl font-black text-white mb-3">
-                  Ready to Practice?
-                </h2>
-                <p className="text-sm text-gray-400 max-w-md mb-8 leading-relaxed">
-                  Click "Start Interview" below. The AI will ask you the
-                  behavioral question and follow up based on your answers. Use
-                  the STAR method for structured responses.
-                </p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {['S — Situation', 'T — Task', 'A — Action', 'R — Result'].map(
-                    (item, i) => (
-                      <span
-                        key={item}
-                        className="rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs font-medium text-gray-400"
-                      >
-                        {item}
-                      </span>
-                    )
-                  )}
-                </div>
-              </motion.div>
+              <PreInterviewSetup
+                problemTitle={selectedQuestion.title}
+                mode="behavioral"
+                accentColor="green-500"
+                isConnecting={isConnecting}
+                showJobDescription={selectedQuestion.id === 'full-behavioral-mock'}
+                onStart={handleStartWithConfig}
+              />
             ) : (
               /* Active session — Conversation visualizer */
               <div className="flex flex-col items-center justify-center h-full w-full max-w-lg px-8">
@@ -546,21 +556,10 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
         {/* Footer Controls */}
         <footer className="h-20 border-t border-white/10 bg-[#161b22] flex items-center justify-center relative z-10 shrink-0">
           <div className="flex items-center justify-center gap-4 rounded-2xl border border-white/10 bg-gray-900/80 p-4 shadow-xl backdrop-blur-md">
-            {!connected && !isConnecting ? (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleStartWithConfig(getSavedConfig())}
-                className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white shadow-lg shadow-green-500/20 hover:bg-green-500 cursor-pointer"
-              >
-                <Play size={20} fill="currentColor" />
-                Start Interview
-              </motion.button>
-            ) : isConnecting ? (
-              <div className="flex items-center gap-2 rounded-xl bg-green-600/50 px-6 py-3 font-semibold text-white/70 cursor-wait">
-                <Loader2 size={20} className="animate-spin" />
-                Connecting...
-              </div>
+            {!connected ? (
+               <div className="text-xs text-gray-500 font-medium">
+                 Configure your session above to start
+               </div>
             ) : (
               <>
                 <motion.button
@@ -618,6 +617,7 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
           onClose={() => {
             setShowFeedback(false);
             setFeedbackData(null);
+            setInterviewStarted(false);
           }}
         />
       )}
@@ -627,7 +627,7 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
 
 export default function BehavioralPage() {
   return (
-    <LiveAPIProvider url={defaultUri} userId="user1">
+    <LiveAPIProvider url={defaultUri} userId={getJudgeId()}>
       <BehavioralSession />
     </LiveAPIProvider>
   );

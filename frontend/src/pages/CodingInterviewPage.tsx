@@ -19,8 +19,10 @@ import { Code2, Mic, ArrowLeft } from "lucide-react";
 import { FeedbackReport, FeedbackData } from "../components/feedback/FeedbackReport";
 import { useTabRecorder } from "../hooks/use-tab-recorder";
 import { fetchAIFeedback } from "../utils/feedback-api";
-import { addRecord } from "../utils/interview-history";import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
-import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig, getDefaultConfig } from '../utils/interview-config';
+import { addRecord } from "../utils/interview-history";
+import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
+import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig, getDefaultConfig, saveConfig } from '../utils/interview-config';
+import { getJudgeId } from "../utils/identity";
 import { Timer } from "../components/interview/Timer";
 // WebSocket URL: in production, same host. In dev, connect to backend on :8000.
 const isDevelopment = window.location.port === "3000";
@@ -130,7 +132,8 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
     audioRecorder.stop();
     setIsMicActive(true);
     setIsVisionActive(false);
-    setInterviewStarted(false);
+    // NOTE: Do NOT set interviewStarted=false here — we need the interview
+    // session DOM to stay mounted so the feedback overlay can render.
     if (visionIntervalRef.current) {
       clearInterval(visionIntervalRef.current);
       visionIntervalRef.current = null;
@@ -159,14 +162,20 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
           problemId: selectedProblem.id,
           problemTitle: selectedProblem.title,
           overallScore: feedback.overallScore,
-          categories: feedback.categories.map(c => ({ name: c.name, score: c.score })),
+          categories: feedback.categories.map(c => ({ name: c.name, score: c.score, comment: c.comment })),
           duration,
+          strengths: feedback.strengths,
+          improvements: feedback.improvements,
+          nextSteps: feedback.nextSteps,
         });
       } catch (e) {
         console.error('Failed to generate AI feedback:', e);
+        setInterviewStarted(false);
       } finally {
         setIsGeneratingFeedback(false);
       }
+    } else {
+      setInterviewStarted(false);
     }
   }, [disconnect, audioRecorder, sessionStartTime, selectedProblem, stopRecording]);
 
@@ -532,6 +541,7 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
         onClose={() => {
           setShowFeedback(false);
           setFeedbackData(null);
+          setInterviewStarted(false);
         }}
       />
     )}
@@ -541,7 +551,7 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
 
 export default function CodingInterviewPage() {
   return (
-    <LiveAPIProvider url={defaultUri} userId="user1">
+    <LiveAPIProvider url={defaultUri} userId={getJudgeId()}>
       <InterviewSession />
     </LiveAPIProvider>
   );

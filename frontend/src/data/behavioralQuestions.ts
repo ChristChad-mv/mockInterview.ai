@@ -15,6 +15,20 @@ export interface BehavioralQuestion {
 
 export const behavioralQuestions: BehavioralQuestion[] = [
   {
+    id: 'full-behavioral-mock',
+    title: 'Full Behavioral Mock Interview',
+    category: 'Communication',
+    company: 'All Top Tech',
+    description: `A comprehensive session covering multiple behavioral areas: leadership, conflict, teamwork, and problem-solving. The AI will select questions for you.`,
+    followUps: [],
+    starMethod: {
+      situation: 'Varies by question',
+      task: 'Varies by question',
+      action: 'Varies by question',
+      result: 'Varies by question',
+    },
+  },
+  {
     id: 'tell-me-about-yourself',
     title: 'Tell Me About Yourself',
     category: 'Communication',

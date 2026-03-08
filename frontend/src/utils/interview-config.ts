@@ -106,9 +106,13 @@ export interface InterviewConfig {
   candidateName?: string;
   resume?: string;
   jobDescription?: string;
+  companyName?: string;
+  judgeId?: string;
 }
 
 const STORAGE_KEY = 'mockinterview-config';
+
+import { getJudgeId } from './identity';
 
 export function getDefaultConfig(): InterviewConfig {
   return { 
@@ -116,7 +120,8 @@ export function getDefaultConfig(): InterviewConfig {
     language: 'en', 
     style: 'friendly',
     duration: 30,
-    candidateName: ''
+    candidateName: '',
+    judgeId: getJudgeId()
   };
 }
 
@@ -146,6 +151,10 @@ export function buildSessionConfigMessage(config: InterviewConfig): string {
     parts.push(`[CANDIDATE NAME] The candidate's name is "${config.candidateName}". Please greet them personally at the beginning of the interview.`);
   }
 
+  if (config.judgeId) {
+    parts.push(`[USER ID] ${config.judgeId}`);
+  }
+
   if (lang && lang.id !== 'en') {
     parts.push(
       `[LANGUAGE] You MUST speak and respond in ${lang.label} for this entire interview session. All your questions, feedback, and comments must be in ${lang.label}.`,
@@ -164,6 +173,10 @@ As the interviewer, you are responsible for:
 2. PACING: Use these updates to pace the conversation. Do not mention the exact system messages, but naturally transition the candidate (e.g., "We have about half the time left, let's look at the implementation").
 3. NO INTERRUPTION: These system messages will not stop your speech. Continue your current thought, then adjust your next turn based on the update.
 4. WRAP-UP: Ensure you finish with a summary before the ${config.duration} minutes are up.`);
+  }
+
+  if (config.companyName) {
+    parts.push(`[COMPANY: ${config.companyName}] The candidate is targeting a role at ${config.companyName}. Use the \`get_entreprise_culture\` tool to fetch their culture and values, and tailor your questions and feedback accordingly.`);
   }
 
   return parts.join('\n');

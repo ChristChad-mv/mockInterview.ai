@@ -9,9 +9,13 @@ export interface InterviewRecord {
   problemId: string;
   problemTitle: string;
   overallScore: number;
-  categories: { name: string; score: number }[];
+  categories: { name: string; score: number; comment?: string }[];
   duration: string;
   date: string; // ISO string
+  // Full feedback (optional — older records may not have these)
+  strengths?: string[];
+  improvements?: string[];
+  nextSteps?: string[];
 }
 
 const STORAGE_KEY = 'mockinterview-history';

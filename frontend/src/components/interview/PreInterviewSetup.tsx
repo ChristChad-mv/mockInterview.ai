@@ -13,6 +13,8 @@ import {
   Loader2,
   ChevronDown,
   Clock,
+  Briefcase,
+  Building2,
 } from 'lucide-react';
 import {
   VOICES,
@@ -32,6 +34,7 @@ interface PreInterviewSetupProps {
   /** Accent colour class (blue-500, purple-500, green-500) */
   accentColor?: string;
   isConnecting: boolean;
+  showJobDescription?: boolean;
   onStart: (config: InterviewConfig) => void;
 }
 
@@ -65,6 +68,7 @@ export function PreInterviewSetup({
   mode,
   accentColor = 'blue-500',
   isConnecting,
+  showJobDescription = false,
   onStart,
 }: PreInterviewSetupProps) {
   const [config, setConfig] = useState<InterviewConfig>(getSavedConfig);
@@ -133,6 +137,49 @@ export function PreInterviewSetup({
             ))}
           </div>
         </Section>
+
+        {/* ── Job Description (Phase 3) ── */}
+        {showJobDescription && (
+          <Section
+            icon={<Briefcase size={16} />}
+            title="Target Role & Company"
+            isOpen={expandedSection === 'job'}
+            onToggle={() => toggle('job')}
+            accentText={a.text}
+          >
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1.5 block">
+                  Company Name <span className="text-gray-600 normal-case tracking-normal font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                  <input
+                    type="text"
+                    value={config.companyName || ''}
+                    onChange={(e) => setConfig((c) => ({ ...c, companyName: e.target.value }))}
+                    placeholder="e.g. Google, Amazon, Meta, Stripe..."
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.03] pl-9 pr-3 py-2.5 text-xs text-white focus:border-green-500 focus:outline-none transition-all placeholder:text-gray-700 font-sans"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-600 mt-1">
+                  The AI will adapt to this company's culture and values.
+                </p>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-1.5 block">
+                  Job Description <span className="text-gray-600 normal-case tracking-normal font-normal">(optional)</span>
+                </label>
+                <textarea
+                  value={config.jobDescription || ''}
+                  onChange={(e) => setConfig((c) => ({ ...c, jobDescription: e.target.value }))}
+                  placeholder="Paste the job description to tailor questions. E.g. Senior Frontend Engineer — React, System Design, Leadership..."
+                  className="w-full h-28 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-white focus:border-green-500 focus:outline-none transition-all resize-none placeholder:text-gray-700 font-sans"
+                />
+              </div>
+            </div>
+          </Section>
+        )}
 
         {/* ── Language ── */}
         <Section

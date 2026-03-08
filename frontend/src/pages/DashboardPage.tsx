@@ -5,7 +5,7 @@
  * problem selection with completion status, and recent sessions.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -21,18 +21,22 @@ import {
   Target,
   BarChart3,
   Clock,
-  CheckCircle2,
   Play,
   Minus,
   User,
   Save,
   FileText,
+  Upload,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { problems } from '../data/problems';
 import { systemDesignProblems } from '../data/systemDesignProblems';
 import { behavioralQuestions } from '../data/behavioralQuestions';
-import { getHistory, getStats, getBestScore } from '../utils/interview-history';
+import { getHistory, getStats, getBestScore, type InterviewRecord } from '../utils/interview-history';
 import { getSavedConfig, saveConfig, type InterviewConfig } from '../utils/interview-config';
+import { FeedbackReport, type FeedbackData } from '../components/feedback/FeedbackReport';
 
 /* ── Mode config ── */
 const MODES = [
@@ -190,11 +194,16 @@ export default function DashboardPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
   const stats = useMemo(() => getStats(), []);
   const history = useMemo(() => getHistory(), []);
+  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackData | null>(null);
   
   const [config, setConfig] = useState<InterviewConfig>(getSavedConfig());
   const [displayName, setDisplayName] = useState(getSavedConfig().candidateName || '');
   const [inputName, setInputName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Resume state
+  const [resumeStatus, setResumeStatus] = useState<'empty' | 'uploading' | 'ready' | 'error'>('empty');
+  const [resumeName, setResumeName] = useState<string | null>(null);
 
   const handleSaveName = () => {
     if (!inputName.trim()) return;
@@ -205,6 +214,58 @@ export default function DashboardPage() {
     setInputName('');
     setTimeout(() => setIsSaving(false), 800);
   };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setResumeStatus('uploading');
+    setResumeName(file.name);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('judge_id', config.judgeId || '');
+
+    try {
+      // Security: Get passcode from storage (no hardcoded fallback)
+      const passcode = sessionStorage.getItem('mockinterview-passcode') || localStorage.getItem('access_passcode');
+      
+      if (!passcode) {
+        throw new Error('No access passcode found. Please log in again.');
+      }
+
+      const response = await fetch('/api/resume/upload', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Passcode': passcode,
+        },
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Upload and indexing failed');
+      }
+      
+      // If we are here, indexing is complete (synchronous backend)
+      setResumeStatus('ready');
+      const updated = { ...config, resume: file.name };
+      saveConfig(updated);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Upload failed');
+      setResumeStatus('error');
+    }
+  };
+
+
+  // On mount, check if there's already a resume in config
+  useEffect(() => {
+    if (config.resume) {
+      setResumeStatus('ready');
+      setResumeName(config.resume);
+    }
+  }, []);
 
   // Build the unified problem list
   const allProblems = useMemo(() => {
@@ -263,8 +324,8 @@ export default function DashboardPage() {
       </nav>
 
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-10">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 mb-10">
+        {/* Header & Profiling */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6 mb-10">
           <div>
             <h1 className="text-3xl font-black tracking-tight">
               {(inputName || displayName) ? `Welcome back, ${inputName || displayName}` : 'Your Dashboard'}
@@ -274,28 +335,54 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Profile Name Input */}
-          <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] p-2 pl-4">
-            <User size={16} className="text-gray-500" />
-            <input 
-              type="text"
-              placeholder="Update your name"
-              className="bg-transparent border-none focus:outline-none text-sm text-white w-40 placeholder:text-gray-600"
-              value={inputName}
-              onChange={(e) => setInputName(e.target.value)}
-            />
-            <button
-              onClick={handleSaveName}
-              disabled={isSaving || !inputName.trim()}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold hover:bg-blue-500 transition-all disabled:opacity-50"
-            >
-              {isSaving ? 'Saved!' : (
-                <>
-                  <Save size={14} />
-                  Save
-                </>
-              )}
-            </button>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            {/* Profile Name Input */}
+            <div className="flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] p-2 pl-4 w-full sm:w-auto">
+              <User size={16} className="text-gray-500" />
+              <input 
+                type="text"
+                placeholder="Update your name"
+                className="bg-transparent border-none focus:outline-none text-sm text-white w-32 md:w-40 placeholder:text-gray-600"
+                value={inputName}
+                onChange={(e) => setInputName(e.target.value)}
+              />
+              <button
+                onClick={handleSaveName}
+                disabled={isSaving || !inputName.trim()}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold hover:bg-blue-500 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isSaving ? 'Saved!' : (
+                  <>
+                    <Save size={14} />
+                    Save
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Resume Upload */}
+            <div className="relative group flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.02] p-2 pl-4 pr-3 w-full sm:w-auto overflow-hidden">
+               <div className="flex items-center gap-2 text-sm">
+                  <FileText size={16} className={resumeStatus === 'ready' ? 'text-green-500' : 'text-gray-500'} />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-gray-600 leading-none mb-1">Resume (CV)</span>
+                    <span className="text-xs font-semibold truncate max-w-[120px]">
+                      {resumeStatus === 'empty' ? 'Not uploaded' : resumeName}
+                    </span>
+                  </div>
+               </div>
+
+               <label className="flex items-center justify-center h-9 w-9 rounded-xl bg-white/[0.05] hover:bg-white/10 transition-colors cursor-pointer">
+                  <input type="file" className="hidden" accept=".pdf,.doc,.docx,.txt" onChange={handleResumeUpload} />
+                  {resumeStatus === 'uploading' ? (
+                    <Loader2 size={16} className="animate-spin text-blue-500" />
+                  ) : resumeStatus === 'ready' ? (
+                    <CheckCircle2 size={16} className="text-green-500" />
+                  ) : (
+                    <Upload size={16} className="text-gray-400 group-hover:text-white" />
+                  )}
+               </label>
+            </div>
           </div>
         </div>
 
@@ -354,7 +441,18 @@ export default function DashboardPage() {
               {history.slice(0, 5).map((record) => (
                 <div
                   key={record.id}
-                  onClick={() => navigate(`/${record.mode}/${record.problemId}`)}
+                  onClick={() => {
+                    setSelectedFeedback({
+                      overallScore: record.overallScore,
+                      duration: record.duration,
+                      mode: record.mode,
+                      problemTitle: record.problemTitle,
+                      categories: record.categories.map(c => ({ name: c.name, score: c.score, comment: c.comment || '' })),
+                      strengths: record.strengths ?? [],
+                      improvements: record.improvements ?? [],
+                      nextSteps: record.nextSteps ?? [],
+                    });
+                  }}
                   className="flex items-center gap-4 rounded-xl border border-white/5 bg-white/[0.02] p-3 hover:bg-white/[0.04] transition-all cursor-pointer"
                 >
                   <MiniScoreRing score={record.overallScore} size={32} />
@@ -448,7 +546,22 @@ export default function DashboardPage() {
             </p>
           </motion.div>
         )}
+
+        {/* Judge ID (Phase 1) */}
+        <div className="mt-20 pt-8 border-t border-white/5 flex justify-center">
+           <p className="text-[10px] text-gray-700 font-mono tracking-tighter uppercase">
+             Session ID: {config.judgeId}
+           </p>
+        </div>
       </div>
-    </div>
+
+    {/* Feedback Report Overlay */}
+    {selectedFeedback && (
+      <FeedbackReport
+        feedback={selectedFeedback}
+        onClose={() => setSelectedFeedback(null)}
+      />
+    )}
+  </div>
   );
 }
