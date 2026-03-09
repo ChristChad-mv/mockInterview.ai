@@ -44,9 +44,9 @@ def create_agent(voice_name: str = DEFAULT_VOICE, user_id: str = None) -> Agent:
     
     if user_id:
         # We create a wrapped version of cv_search that already knows the user_id
-        def search_candidate_cv(query: str) -> str:
+        async def search_candidate_cv(query: str) -> str:
             """Search the candidate's resume/CV for specific information."""
-            return cv_search(query, user_id)
+            return await cv_search(query, user_id)
         
         session_tools.append(search_candidate_cv)
 

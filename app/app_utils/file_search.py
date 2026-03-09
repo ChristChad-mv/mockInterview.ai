@@ -25,16 +25,16 @@ def get_gemini_client():
         http_options={"api_version": "v1beta"}
     )
 
-def ensure_global_store_exists(client):
+async def ensure_global_store_exists_async(client):
     """
-    Checks if the global store exists. Returns the store object.
+    Checks if the global store exists asynchronously. Returns the store object.
     Creates it if it doesn't exist.
     """
     global_display_name = settings.FILE_SEARCH_STORE_NAME
     
     try:
         # List stores and find the one with our target display name
-        for store in client.file_search_stores.list():
+        async for store in client.aio.file_search_stores.list():
             if store.display_name == global_display_name:
                 return store
     except Exception as e:
@@ -42,7 +42,7 @@ def ensure_global_store_exists(client):
 
     # If not found, create it
     logger.info(f"Creating global FileSearchStore: {global_display_name}")
-    return client.file_search_stores.create(
+    return await client.aio.file_search_stores.create(
         config={
             'display_name': global_display_name
         }

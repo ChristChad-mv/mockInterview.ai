@@ -7,11 +7,11 @@ import os
 import logging
 from google import genai
 from google.genai import types
-from ..app_utils.file_search import get_gemini_client, ensure_global_store_exists
+from ..app_utils.file_search import get_gemini_client, ensure_global_store_exists_async
 
 logger = logging.getLogger(__name__)
 
-def cv_search(query: str, user_id: str) -> str:
+async def cv_search(query: str, user_id: str) -> str:
     """
     Search the candidate's resume/CV for specific information.
     
@@ -21,12 +21,13 @@ def cv_search(query: str, user_id: str) -> str:
     """
     try:
         client = get_gemini_client()
-        store = ensure_global_store_exists(client)
+        store = await ensure_global_store_exists_async(client)
         
         # Improvement: Be more explicit in the RAG prompt
         search_prompt = f"Using the provided File Search capabilities, please answer this question based ONLY on the candidate's CV: {query}"
         
-        response = client.models.generate_content(
+        # Use Async API to avoid blocking the Live Session WebSocket
+        response = await client.aio.models.generate_content(
             model="gemini-3.1-flash-lite-preview", 
             contents=search_prompt,
             config=types.GenerateContentConfig(

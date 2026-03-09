@@ -7,7 +7,7 @@ from ..app_utils.data.company_cultures import COMPANY_CULTURES
 
 
 
-def get_entreprise_culture(company_name: str) -> str:
+async def get_entreprise_culture(company_name: str) -> str:
     """
     Retrieves the culture, values, and interview focus for a given company.
     
