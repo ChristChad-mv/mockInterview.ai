@@ -100,7 +100,7 @@ export default function LandingPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-500/20">
             <Code2 size={20} />
           </div>
-          <span className="text-xl font-bold tracking-tight">
+          <span className="text-xl font-bold tracking-tight text-white">
             MockInterview
             <span className="text-blue-400">.ai</span>
           </span>
@@ -156,11 +156,11 @@ export default function LandingPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-10"
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mt-12 flex flex-col sm:flex-row items-center gap-4"
         >
-          <a href="#start" className="group">
-            <div className="flex items-center gap-2 rounded-2xl bg-blue-600 px-8 py-4 text-lg font-bold shadow-xl shadow-blue-500/25 hover:bg-blue-500 hover:shadow-blue-500/40 transition-all cursor-pointer">
+          <a href="#start" className="group w-full sm:w-auto">
+            <div className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-8 py-4 text-lg font-bold shadow-xl shadow-blue-500/25 hover:bg-blue-500 hover:shadow-blue-500/40 transition-all cursor-pointer">
               Start Practicing
               <ArrowRight
                 size={20}

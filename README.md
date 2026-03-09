@@ -76,15 +76,15 @@ Voice is configured **per-session** via ADK's `SpeechConfig`. The AI is aware of
 │  │                    │  WS    │                            │ │
 │  │ • Monaco Editor    │───────▶│ • Per-session ADK Agent     │ │
 │  │ • tldraw Whiteboard│◀───────│ • Gemini Live 2.5 Flash    │ │
-│  │ • AudioWorklet     │  JSON  │ • Voice selection (5 voices)│ │
-│  │ • Tab Recorder     │        │ • Video upload → GCS        │ │
-│  │ • Tailwind CSS v4  │        │ • Feedback via Gemini 3.1   │ │
-│  │ • AudioWorklet     │  JSON  │ • cv_search Tool (RAG)      │ │
-│  │ • JudgeID Storage  │        │ • Gemini 3.1 Flash (Lite)   │ │
+│  │ • AudioWorklet     │  JSON  │ • API Router (v1)           │ │
+│  │ • Tab Recorder     │        │ • Feedback Analysis Tool    │ │
+│  │ • Tailwind CSS v4  │        │ • cv_search Tool (RAG)      │ │
+│  │ • JudgeID Storage  │  JSON  │ • telemetry (OpenTelemetry) │ │
 │  └───────────────────┘        └────────────────────────────┘ │
 │       GET /*                    WS /ws                        │
-│                                 POST /api/resume/upload       │
-│                                 POST /api/feedback            │
+│                                 POST /api/v1/auth/login       │
+│                                 POST /api/v1/resume/upload    │
+│                                 POST /api/v1/feedback         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -142,9 +142,16 @@ The platform includes a real-time "Time Manager" logic:
 ```
 mockInterview.ai/
 ├── app/                              # Python backend
+│   ├── api/v1/                       # Modular API Endpoints
+│   │   ├── endpoints/                # auth, feedback, resume, misc
+│   │   └── router.py                 # Central API Router
+│   ├── prompts/v1/                   # Expert Interviewer Prompts
+│   │   ├── system_prompt.py          # Personas & Interview rules
+│   │   └── feedback_prompt.py        # Analysis & Scorecards
+│   ├── tools/                        # AI Tools (cv_search, culture)
 │   ├── agent.py                      # ADK Agent factory
-│   ├── fast_api_app.py               # FastAPI — WS, feedback API
-│   └── app_utils/                    # Telemetry, GCS, Pydantic types
+│   ├── fast_api_app.py               # FastAPI App entry point
+│   └── app_utils/                    # Config, File Search, Telemetry
 │
 ├── frontend/                         # React frontend (Vite + Tailwind v4)
 │   ├── src/
@@ -256,7 +263,9 @@ After deployment, the `make deploy` command will output the **Service URL**.
 | `make setup-dev-env` | Provision GCP via Terraform |
 | `make lint` | Code quality checks |
 
-- **Agent behavior** → edit `app/agent.py` (system instruction + voice config)
+- **Agent behavior** → edit `app/prompts/v1/system_prompt.py` (system instruction)
+- **Feedback logic** → edit `app/prompts/v1/feedback_prompt.py` (analysis rules)
+- **API Endpoints** → edit `app/api/v1/endpoints/`
 - **Interview problems** → edit files in `frontend/src/data/`
 - **Frontend** → edit `frontend/src/` — auto-rebuilds with `make playground`
 

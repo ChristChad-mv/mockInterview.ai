@@ -208,7 +208,8 @@ export const FeedbackReport: FC<FeedbackReportProps> = ({
           </div>
         </div>
 
-        {!feedback.isSessionValid ? (
+        {/* Main Content */}
+        {feedback.isSessionValid === false && (!feedback.categories || feedback.categories.length === 0) ? (
           <div className="p-12 flex flex-col items-center text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500 mb-2">
               <TrendingDown size={32} />

@@ -47,3 +47,11 @@ resource "google_project_iam_member" "app_sa_roles" {
 }
 
 
+# Allow public (unauthenticated) access to the service
+resource "google_cloud_run_v2_service_iam_member" "public_access" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.app.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}

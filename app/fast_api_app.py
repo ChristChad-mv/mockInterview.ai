@@ -87,9 +87,16 @@ class AgentSession:
         self.session_id: str | None = None
         self.voice_name: str = "Puck"
         self.setup_received = asyncio.Event()
+        self.total_prompt_tokens = 0
+        self.total_response_tokens = 0
 
     async def receive_from_client(self) -> None:
-        """Listen for messages from the client and put them in the queue."""
+        """Listens for and processes incoming messages from the WebSocket client.
+
+        This method runs in a loop, receiving text or binary data from the client.
+        'setup' messages are used to configure the session (voice, user_id).
+        Other messages are forwarded to the agent's input queue for processing.
+        """
         while True:
             try:
                 message = await self.websocket.receive()
@@ -112,7 +119,16 @@ class AgentSession:
                 break
 
     async def run_agent(self) -> None:
-        """Run the ADK agent loop."""
+        """Initializes and runs the ADK agent for the current session.
+
+        This method:
+        1. Waits for the 'setup' configuration from the client.
+        2. Creates a dedicated ADK Agent and Runner.
+        3. Establishes a live connection to the Gemini model.
+        4. Manages bidirectional forwarding of requests (client -> model) 
+           and events (model -> client).
+        5. Tracks token usage metadata during the session.
+        """
         try:
             await self.setup_received.wait()
             agent = create_agent(self.voice_name, user_id=self.user_id)
@@ -150,6 +166,21 @@ class AgentSession:
                 )
                 async for event in events_async:
                     event_dict = _utils.dump_event_for_json(event)
+
+                    # Official ADK Usage Tracking (as per documentation)
+                    # The event may contain token counts in snake_case (ADK Python) or camelCase (Raw API)
+                    usage = event_dict.get("usage_metadata") or event_dict.get("usageMetadata")
+                    
+                    if usage:
+                        p_tokens = usage.get("prompt_token_count") or usage.get("promptTokenCount") or 0
+                        r_tokens = usage.get("candidates_token_count") or usage.get("responseTokenCount") or 0
+                        
+                        if p_tokens or r_tokens:
+                            # We keep the latest cumulative count
+                            self.total_prompt_tokens = p_tokens
+                            self.total_response_tokens = r_tokens
+                            logging.info(f"📊 Tokens: Prompt={p_tokens}, Response={r_tokens}")
+
                     await self.websocket.send_json(event_dict)
 
             requests_task = asyncio.create_task(_forward_requests())
@@ -161,26 +192,31 @@ class AgentSession:
             logging.error(f"Agent session error: {e}")
             await self.websocket.send_json({"error": str(e)})
 
-def get_connect_and_run_callable(websocket: WebSocket):
-    @backoff.on_exception(backoff.expo, ConnectionClosedError, max_tries=5)
-    async def connect_and_run():
-        session = AgentSession(websocket)
-        await asyncio.gather(session.receive_from_client(), session.run_agent())
-    return connect_and_run
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Main interview WebSocket endpoint."""
+    """Handles the main real-time interview WebSocket connection.
+
+    This endpoint authenticates the client via a passcode, establishes the
+    WebSocket connection, and manages the AgentSession lifecycle, including
+    cleanup and final token usage logging upon disconnection.
+
+    Args:
+        websocket: The incoming FastAPI WebSocket connection.
+    """
     passcode = websocket.query_params.get("passcode", "")
     if passcode != settings.ACCESS_PASSCODE:
         await websocket.close(code=4001, reason="Invalid passcode")
         return
     await websocket.accept()
-    connect_and_run = get_connect_and_run_callable(websocket)
+    session = None
     try:
-        await connect_and_run()
+        session = AgentSession(websocket)
+        await asyncio.gather(session.receive_from_client(), session.run_agent())
     finally:
-        logging.info("🎙️ Session disconnected")
+        p = session.total_prompt_tokens if session else 0
+        r = session.total_response_tokens if session else 0
+        logging.info(f"🎙️ Session disconnected. Usage: {p + r} total tokens (P: {p}, R: {r})")
 
 # ── SPA / Frontend Serving ──
 

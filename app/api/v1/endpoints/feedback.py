@@ -37,6 +37,26 @@ async def generate_video_feedback(
     try:
         video_bytes = await video.read()
         video_size_mb = len(video_bytes) / (1024 * 1024)
+
+        # Pre-check duration to avoid unnecessary Gemini calls
+        try:
+            # duration is usually "X min" or "0 min"
+            duration_val = int(duration.split()[0])
+            if duration_val < 1:
+                return {
+                    "isSessionValid": False,
+                    "insignificanceReason": "Session too brief (less than 1 minute). Please stay longer to get meaningful feedback.",
+                    "overallScore": 0,
+                    "categories": [],
+                    "strengths": [],
+                    "improvements": [],
+                    "nextSteps": [],
+                    "mode": mode,
+                    "problemTitle": problem_title,
+                    "duration": duration
+                }
+        except (ValueError, IndexError):
+            pass
         
         # Upload to GCS
         video_uri = None

@@ -13,7 +13,10 @@ Analyze the ENTIRE video carefully, including:
 - Their interaction with the AI interviewer (how they responded to hints and follow-ups)
 - Visual cues: how they wrote code, drew diagrams, their editing patterns
 
-IMPORTANT: Base your scores ONLY on what you actually observe in the video. If the video is too short (e.g., less than 30s) or if the candidate hasn't started yet, DO NOT hallucinate. Use the `isSessionValid` flag.
+IMPORTANT: Base your evaluation ONLY on what you actually observe. 
+- If the candidate made an effort (even brief), provide a concise but honest report.
+- Set `isSessionValid` to `false` ONLY if the recording is completely empty, contains only background noise, or if the candidate never started the task. 
+- DO NOT hallucinate details that are not present.
 
 Interview Mode: {mode}
 Problem: {problem_title}

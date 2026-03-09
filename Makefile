@@ -59,22 +59,24 @@ build-frontend-if-needed:
 # ==============================================================================
 
 # Deploy the agent remotely
-# Usage: make deploy [IAP=true] [PORT=8080] - Set IAP=true to enable Identity-Aware Proxy, PORT to specify container port
-deploy:
-	PROJECT_ID=$$(gcloud config get-value project) && \
-	gcloud beta run deploy mockinterview-ai \
+deploy: build-frontend-if-needed
+	@PROJECT_ID=$$(gcloud config get-value project) && \
+	echo "🚀 Deploying to Project: $$PROJECT_ID" && \
+	gcloud beta run deploy mockinterview-agent \
 		--source . \
 		--memory "4Gi" \
 		--project $$PROJECT_ID \
 		--region "us-central1" \
-		--no-allow-unauthenticated \
+		--allow-unauthenticated \
 		--no-cpu-throttling \
 		--labels "created-by=adk" \
-		--update-build-env-vars "AGENT_VERSION=$(shell awk -F'"' '/^version = / {print $$2}' pyproject.toml || echo '0.0.0')" \
-		--update-env-vars \
-		"" \
-		$(if $(IAP),--iap) \
-		$(if $(PORT),--port=$(PORT))
+		--set-env-vars "ACCESS_PASSCODE=$(shell grep ACCESS_PASSCODE .env | cut -d '=' -f2)" \
+		--set-env-vars "GEMINI_API_KEY=$(shell grep GEMINI_API_KEY .env | cut -d '=' -f2)" \
+		--set-env-vars "GOOGLE_CLOUD_PROJECT=$$PROJECT_ID" \
+		--set-env-vars "GOOGLE_CLOUD_LOCATION=us-central1" \
+		--set-env-vars "USE_VERTEXAI=True" \
+		--set-env-vars "LOGS_BUCKET_NAME=mockinterview-ia-mockinterview-agent-logs" \
+		--set-env-vars "RECORDINGS_BUCKET=mockinterview-ia-recordings"
 
 # Alias for 'make deploy' for backward compatibility
 backend: deploy
