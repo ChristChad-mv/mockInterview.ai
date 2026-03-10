@@ -62,7 +62,7 @@ build-frontend-if-needed:
 deploy: build-frontend-if-needed
 	@PROJECT_ID=$$(gcloud config get-value project) && \
 	echo "🚀 Deploying to Project: $$PROJECT_ID" && \
-	gcloud beta run deploy mockinterview-agent \
+	gcloud beta run deploy mockinterview-saas \
 		--source . \
 		--memory "8Gi" \
 		--cpu "4" \
@@ -72,8 +72,15 @@ deploy: build-frontend-if-needed
 		--allow-unauthenticated \
 		--no-cpu-throttling \
 		--labels "created-by=adk" \
-		--set-env-vars "ACCESS_PASSCODE=$(shell grep ACCESS_PASSCODE .env | cut -d '=' -f2)" \
 		--set-env-vars "GEMINI_API_KEY=$(shell grep GEMINI_API_KEY .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_ADMIN_EMAIL=$(shell grep VITE_ADMIN_EMAIL .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_API_KEY=$(shell grep VITE_FIREBASE_API_KEY .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_AUTH_DOMAIN=$(shell grep VITE_FIREBASE_AUTH_DOMAIN .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_PROJECT_ID=$(shell grep VITE_FIREBASE_PROJECT_ID .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_STORAGE_BUCKET=$(shell grep VITE_FIREBASE_STORAGE_BUCKET .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_MESSAGING_SENDER_ID=$(shell grep VITE_FIREBASE_MESSAGING_SENDER_ID .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_APP_ID=$(shell grep VITE_FIREBASE_APP_ID .env | cut -d '=' -f2)" \
+		--set-env-vars "VITE_FIREBASE_MEASUREMENT_ID=$(shell grep VITE_FIREBASE_MEASUREMENT_ID .env | cut -d '=' -f2)" \
 		--set-env-vars "GOOGLE_CLOUD_PROJECT=$$PROJECT_ID" \
 		--set-env-vars "GOOGLE_CLOUD_LOCATION=us-central1" \
 		--set-env-vars "USE_VERTEXAI=True" \
