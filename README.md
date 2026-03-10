@@ -2,6 +2,9 @@
 
 > **AI-powered mock technical interviews with real-time voice, vision, and structured feedback.**
 
+> [!IMPORTANT]
+> **🏆 Gemini Live Agent Challenge Judges** — For a complete breakdown of our agent's capabilities, Gemini/ADK integration, and architecture, see **[📄 docs/HACKATHON.md](docs/HACKATHON.md)**.
+
 An AI interviewer that **talks to you**, **watches your screen in real time**, and **gives video-based feedback** — just like sitting across from a senior engineer at Google. Built with [Google ADK](https://google.github.io/adk-docs/) + [Gemini Live 2.5 Flash Native Audio](https://ai.google.dev/gemini-api/docs/live).
 
 https://github.com/user-attachments/assets/demo.mp4
@@ -16,14 +19,14 @@ https://github.com/user-attachments/assets/demo.mp4
 | 👁️ | **Live screen vision** | The AI watches your code editor / whiteboard in real time and comments on what it sees |
 | 📄 | **Personalized RAG** | Upload your CV and paste a Job Description. AI uses **Gemini File Search** to tailor questions to your profile |
 | 👤 | **Persistent Identity** | Automatically generates a unique **JudgeID** per browser, linking your CV and history |
-| 🗣️ | **5 AI voices** | Choose from Puck, Charon, Kore, Fenrir, or Aoede — each with a distinct personality |
+| 🗣️ | **5 named AI voices** | Choose from Puck, Charon, Kore, Fenrir, or Aoede — the agent introduces itself by name with a distinct personality |
 | 🌍 | **10 languages** | Interview in English, French, Spanish, Portuguese, German, Japanese, Korean, Chinese, Hindi, or Arabic |
 | 🎭 | **4 interview styles** | Friendly, Tough, FAANG-style, or Casual — adapts the AI's personality |
 | 📹 | **AI video feedback** | Records your screen → Gemini 3.1 Flash Lite analyzes the full video → structured scores & tips |
 | 📊 | **Dashboard & history** | Track your progress, scores, streaks, and revisit past sessions |
 | ⏱️ | **Customizable duration** | Choose 15-60 min sessions; AI paces the interview to finish on time |
 | 🔐 | **Passcode access gate** | Control access for hackathon demos / judges |
-| 📐 | **Detailed Architecture** | Comprehensive diagrams and technical deep-dives in [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| 📐 | **Detailed Architecture** | Comprehensive diagrams and technical deep-dives in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 
 ---
 
@@ -32,8 +35,8 @@ https://github.com/user-attachments/assets/demo.mp4
 ### 💻 Coding Interview (`/coding/:problem`)
 Full-featured **Monaco code editor** with syntax highlighting (Python, JavaScript, Java). The AI watches your code in real time, asks Socratic questions, and never gives direct answers.
 
-**3 problems included:**
-- Two Sum (Easy) • Reverse Linked List (Medium) • Longest Substring Without Repeating Characters (Medium)
+**15+ problems included** across Easy, Medium, and Hard:
+- Two Sum • Valid Parentheses • Merge Two Sorted Lists • Reverse Linked List • Longest Substring Without Repeating Characters • LRU Cache • and more
 
 ### 🏗️ System Design (`/system-design/:problem`)
 Interactive **tldraw whiteboard** — draw architecture diagrams while the AI guides you through requirements → estimation → high-level design → deep dive → bottlenecks.
@@ -61,32 +64,13 @@ Before each session, a configuration screen lets you customize:
 | **Duration** | ⏱️ 15 min · 30 min · 45 min · 60 min |
 | **Target Role** | 💼 (Optional) Paste a **Job Description** to tailor the session |
 
-Voice is configured **per-session** via ADK's `SpeechConfig`. The AI is aware of the chosen duration and receives periodic hidden time updates to help it pace the session.
+Voice is configured **per-session** via ADK's `SpeechConfig`. The AI can see the timer on screen via its vision capability and naturally paces the interview without needing explicit time notifications.
 
 ---
 
 ## 🏗️ Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     Cloud Run (port 8080)                     │
-│                                                               │
-│  ┌───────────────────┐        ┌────────────────────────────┐ │
-│  │   React SPA        │        │   FastAPI (Python)          │ │
-│  │                    │  WS    │                            │ │
-│  │ • Monaco Editor    │───────▶│ • Per-session ADK Agent     │ │
-│  │ • tldraw Whiteboard│◀───────│ • Gemini Live 2.5 Flash    │ │
-│  │ • AudioWorklet     │  JSON  │ • API Router (v1)           │ │
-│  │ • Tab Recorder     │        │ • Feedback Analysis Tool    │ │
-│  │ • Tailwind CSS v4  │        │ • cv_search Tool (RAG)      │ │
-│  │ • JudgeID Storage  │  JSON  │ • telemetry (OpenTelemetry) │ │
-│  └───────────────────┘        └────────────────────────────┘ │
-│       GET /*                    WS /ws                        │
-│                                 POST /api/v1/auth/login       │
-│                                 POST /api/v1/resume/upload    │
-│                                 POST /api/v1/feedback         │
-└──────────────────────────────────────────────────────────────┘
-```
+![mockInterview.ai Architecture](docs/architecture-diagram.png)
 
 ### How a session works
 
@@ -124,10 +108,11 @@ User clicks "Start Interview"
 
 ### ⏱️ Smart Time Management
 
-The platform includes a real-time "Time Manager" logic:
-- **Dynamic Pacing**: The AI receives silent `[SYSTEM]` updates every few minutes with the remaining time. It will naturally transition you through the interview phases to ensure you finish within the limit.
-- **Grace Period**: When the timer hits zero, the AI is notified to wrap up. It has a **10-second grace period** to say its goodbyes before the connection is automatically severed and feedback generation begins.
-- **Extendable Sessions**: Need more time? Click the **"+" button** next to the timer to instantly add **5 minutes** to your current session. The AI is immediately notified of the extension.
+The platform includes intelligent time management:
+- **Visual Time Awareness**: The AI can see the countdown timer on screen via its vision capability, allowing it to naturally pace the interview without explicit system messages.
+- **Session Durability**: With `SessionResumptionConfig(transparent=True)` and `ContextWindowCompressionConfig`, sessions sustain **25-30+ minutes** of continuous, coherent conversation.
+- **Extendable Sessions**: Need more time? Click the **"+" button** next to the timer to instantly add **5 minutes** to your current session.
+- **Graceful End**: When the timer hits zero, the connection is automatically severed and feedback generation begins.
 
 ### Key Technical Details
 
@@ -301,8 +286,13 @@ Built-in telemetry (OpenTelemetry → Cloud Trace, Cloud Logging, BigQuery):
 - [x] Persistent JudgeID per user
 - [x] Full Mock Interview mode with Job Description support
 - [x] More coding problems (15+ across Easy/Medium/Hard)
-- [X] Resume upload → AI generates tailored behavioral questions
+- [x] Resume upload → AI generates tailored behavioral questions
+- [x] Session Resumption for 30+ minute sustained conversations
+- [x] Affective dialog — AI adapts to candidate's emotional state
+- [x] Named AI personalities (Puck, Kore, Fenrir, Charon, Aoede)
+- [x] Personalized "You" feedback style
 - [ ] Persistent user accounts with OAuth
+- [ ] Interview video recording & playback
 
 ---
 

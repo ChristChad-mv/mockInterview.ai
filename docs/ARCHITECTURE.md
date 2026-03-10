@@ -66,41 +66,7 @@ graph TD
 
 This diagram shows the real-time flow of multimodal data followed by the asynchronous feedback generation.
 
-```mermaid
-sequenceDiagram
-    participant U as Candidate
-    participant C as Frontend (Client)
-    participant S as Backend (FastAPI / ADK)
-    participant GL as Gemini Live API
-    participant CV as File Search (CV)
-    participant G3 as Gemini 3.1 Flash-Lite
-
-    U->>C: Starts Interview
-    C->>S: WebSocket Connection Request
-    S-->>C: Connection Established
-    
-    Note over S,CV: Pre-Interview RAG Initialization
-    S->>CV: cv_search(User Profile)
-    CV-->>S: Contextual Data (History/Skills)
-    
-    loop Real-time Interview
-        U->>C: Speaks (Audio Input)
-        C->>GL: Send Audio Binary (Bidi-stream)
-        
-        Note over C,GL: Continuous Vision Stream
-        C->>GL: Send Screen Snapshot (JPEG)
-        
-        GL-->>C: Millisecond Native Audio Response
-        C-->>U: Play Audio (Real-time)
-    end
-
-    U->>C: Ends Session
-    C->>S: Request Final Analysis
-    S->>S: Upload Recording to GCS
-    S->>G3: Analyze Video Metadata + Content
-    G3-->>S: Return Structured JSON Feedback
-    S-->>C: Display Feedback Dashboard
-```
+![Sequence Diagram](sequence-diagram.png)
 
 ---
 
@@ -108,31 +74,7 @@ sequenceDiagram
 
 How the candidate interacts with the platform.
 
-```mermaid
-graph TD
-    Actor((Candidate))
-    
-    subgraph "MockInterview.ai"
-        UC1(Select Interview Mode)
-        UC2(Upload Resume & Personalize)
-        UC3(Conduct Live Interview)
-        UC3a(Real-time Coding/Vision) 
-        UC3b(Whiteboarding)
-        UC4(Review AI Coaching Feedback)
-        UC5(Manage Interview History)
-    end
-    
-    Actor --> UC1
-    Actor --> UC2
-    Actor --> UC3
-    UC3 --> UC3a
-    UC3 --> UC3b
-    Actor --> UC4
-    Actor --> UC5
-    
-    style Actor fill:#3b82f6,stroke:#fff,stroke-width:2px
-    style UC3 fill:#1e1e2e,stroke:#3b82f6,stroke-width:2px
-```
+![Use Case Diagram](usecase-diagram.png)
 
 ---
 

@@ -216,12 +216,11 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
   const handleTimeUp = useCallback(() => {
     if (connected) {
       console.log('[Timer] Time is up!');
-      client.send([{ text: `[[LOG]] TIME IS UP. Wrap up the interview immediately and say goodbye.` }]);
       setTimeout(() => {
         handleDisconnect();
       }, 8000);
     }
-  }, [connected, client, handleDisconnect]);
+  }, [connected, handleDisconnect]);
 
   const handleAddTime = useCallback(() => {
     if (connected) {

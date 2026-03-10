@@ -76,7 +76,8 @@ deploy: build-frontend-if-needed
 		--set-env-vars "GOOGLE_CLOUD_LOCATION=us-central1" \
 		--set-env-vars "USE_VERTEXAI=True" \
 		--set-env-vars "LOGS_BUCKET_NAME=mockinterview-ia-mockinterview-agent-logs" \
-		--set-env-vars "RECORDINGS_BUCKET=mockinterview-ia-recordings"
+		--set-env-vars "RECORDINGS_BUCKET=mockinterview-ia-recordings" \
+		--set-env-vars "ALLOWED_ORIGINS=https://mockinterview-agent-105946928985.us-central1.run.app"
 
 # Alias for 'make deploy' for backward compatibility
 backend: deploy

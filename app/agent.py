@@ -58,13 +58,16 @@ def create_agent(voice_name: str = DEFAULT_VOICE, user_id: str = None, language:
         else "gemini-2.5-flash-native-audio-preview-12-2025"
     )
 
+    # Inject voice name into the system prompt
+    instruction = INTERVIEWER_SYSTEM_INSTRUCTION.format(voice_name=voice_name)
+
     return Agent(
         name="mock_interviewer",
         model=Gemini(
             model=model_id,
             retry_options=types.HttpRetryOptions(attempts=3),
         ),
-        instruction=INTERVIEWER_SYSTEM_INSTRUCTION,
+        instruction=instruction,
         # tools=[], # Add tools here when ready
     )
 

@@ -1,9 +1,13 @@
 # Cloud Build Production Deployment
-# Final pipeline for deploying to the production environment.
+# Deploys the pre-built image from Artifact Registry to Cloud Run (production).
+#
+# Usage:
+#   gcloud builds submit --config .cloudbuild/deploy-to-prod.yaml
+#
 steps:
-   
-  - name: "gcr.io/cloud-builders/gcloud-slim"
-    id: trigger-deployment
+  # Deploy to Cloud Run (Production)
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: deploy-production
     entrypoint: gcloud
     args:
       - "run"
@@ -12,13 +16,36 @@ steps:
       - "--image"
       - "$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO_NAME/$_CONTAINER_NAME"
       - "--region"
-      - "$_REGION"
+      - "${_REGION}"
       - "--project"
-      - $_PROD_PROJECT_ID
+      - "${PROJECT_ID}"
+      - "--memory"
+      - "4Gi"
+      - "--allow-unauthenticated"
+      - "--no-cpu-throttling"
+      - "--labels"
+      - "created-by=adk,env=production"
+      - "--set-env-vars"
+      - "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${_REGION},USE_VERTEXAI=True"
+
+  # Display deployed URL
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: display-url
+    entrypoint: /bin/bash
+    args:
+      - "-c"
+      - |
+        _URL=$(gcloud run services describe mockinterview-agent \
+          --region ${_REGION} --project ${PROJECT_ID} --format="value(status.url)")
+        echo "_________________________________________________________________________"
+        echo "✅ Production deployment successful!"
+        echo "🌐 Service URL: $${_URL}"
+        echo "_________________________________________________________________________"
 
 substitutions:
-  _PROD_PROJECT_ID: YOUR_PROD_PROJECT_ID
   _REGION: us-central1
+  _ARTIFACT_REGISTRY_REPO_NAME: mockinterview-agent
+  _CONTAINER_NAME: mockinterview-agent
 
 logsBucket: gs://${PROJECT_ID}-mockinterview-agent-logs/build-logs
 options:
