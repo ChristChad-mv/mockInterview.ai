@@ -140,7 +140,7 @@ Each voice has a **name and personality**. When you select "Kore" as your voice:
 | **Voice Configuration** | `SpeechConfig` + `PrebuiltVoiceConfig` | Per-session voice selection (5 voices) |
 | **Proactive Behavior** | `ProactivityConfig(proactive_audio=True)` | Agent speaks when it detects silence |
 | **Emotional Intelligence** | `enable_affective_dialog=True` | Adapts tone to candidate's emotional state |
-| **Feedback Analysis** | `Gemini 2.0 Flash` | Video-based structured scoring |
+| **Feedback Analysis** | `gemini-3.1-flash-lite-preview` | Video-based structured scoring |
 
 ### Audio Pipeline — Zero-Latency Design
 
@@ -258,7 +258,7 @@ Complete in [README.md](../README.md) — `make install && make playground` gets
 | Layer | Technology |
 |---|---|
 | **Live Interview AI** | Gemini 2.5 Flash Native Audio (Live API via ADK) |
-| **Feedback AI** | Gemini 2.0 Flash (video analysis) |
+| **Feedback AI** | gemini-3.1-flash-lite-preview (video analysis) |
 | **Agent Framework** | Google ADK (`Agent`, `Runner.run_live()`, `LiveRequestQueue`) |
 | **Backend** | Python 3.11, FastAPI, uvicorn |
 | **Frontend** | React 18, TypeScript, Vite |
