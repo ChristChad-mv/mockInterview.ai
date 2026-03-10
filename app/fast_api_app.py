@@ -25,6 +25,7 @@ from google.cloud import logging as google_cloud_logging
 from google.genai import types
 from vertexai.agent_engines import _utils
 from websockets.exceptions import ConnectionClosedError
+from firebase_admin import auth as firebase_auth
 
 from .agent import app as adk_app, create_agent, LANGUAGE_MAPPING
 from .app_utils.telemetry import setup_telemetry
@@ -242,10 +243,20 @@ async def websocket_endpoint(websocket: WebSocket):
     Args:
         websocket: The incoming FastAPI WebSocket connection.
     """
-    passcode = websocket.query_params.get("passcode", "")
-    if passcode != settings.ACCESS_PASSCODE:
-        await websocket.close(code=4001, reason="Invalid passcode")
+    token = websocket.query_params.get("token", "")
+    if not token:
+        await websocket.close(code=4001, reason="Missing auth token")
         return
+    
+    try:
+        # Verify Firebase token
+        decoded_token = firebase_auth.verify_id_token(token)
+        user_id = decoded_token.get("uid")
+    except Exception as e:
+        logging.error(f"WS Auth failed: {e}")
+        await websocket.close(code=4001, reason="Invalid auth token")
+        return
+
     await websocket.accept()
     session = None
     try:

@@ -7,12 +7,13 @@ import logging
 import traceback
 import uuid
 import time as _time
-from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Depends, HTTPException, UploadFile
 from google import genai
 from google.cloud import storage as gcs_storage
 
 from app.app_utils.config import settings
 from app.app_utils.typing import Feedback
+from app.app_utils.auth import get_current_user
 from app.prompts.v1.feedback_prompt import FEEDBACK_PROMPT
 
 router = APIRouter()
@@ -29,11 +30,10 @@ async def generate_video_feedback(
     mode: str = Form(...),
     problem_title: str = Form(...),
     duration: str = Form("0 min"),
-    x_passcode: str | None = Header(None, alias="X-Passcode"),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Analyze interview recording."""
-    if x_passcode != settings.ACCESS_PASSCODE:
-        raise HTTPException(status_code=401, detail="Invalid passcode")
+    # current_user will contain decoded Firebase token
     try:
         video_bytes = await video.read()
         video_size_mb = len(video_bytes) / (1024 * 1024)
