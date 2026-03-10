@@ -1,74 +1,68 @@
-/**
- * Auth context — passcode-based access control.
- * Stores the passcode in sessionStorage so it survives page refreshes
- * but not new tabs/browser restarts.
- */
-
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-
-const STORAGE_KEY = 'mockinterview-passcode';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { 
+  onAuthStateChanged, 
+  User, 
+  signOut,
+  signInWithCustomToken // We'll keep it flexible for now
+} from 'firebase/auth';
+import { auth } from '../utils/firebase';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  passcode: string | null;
-  login: (code: string) => Promise<boolean>;
-  logout: () => void;
+  user: User | null;
+  loading: boolean;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
-  passcode: null,
-  login: async () => false,
-  logout: () => {},
+  user: null,
+  loading: true,
+  logout: async () => {},
 });
 
 export function useAuth() {
   return useContext(AuthContext);
 }
 
-export function getStoredPasscode(): string | null {
-  return sessionStorage.getItem(STORAGE_KEY);
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [passcode, setPasscode] = useState<string | null>(
-    () => sessionStorage.getItem(STORAGE_KEY),
-  );
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = useCallback(async (code: string): Promise<boolean> => {
-    // Verify with backend
-    try {
-      const res = await fetch('/api/verify-passcode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passcode: code }),
-      });
-      if (res.ok) {
-        sessionStorage.setItem(STORAGE_KEY, code);
-        setPasscode(code);
-        return true;
+  useEffect(() => {
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+      
+      if (user) {
+        // Store token for API calls
+        user.getIdToken().then(token => {
+          localStorage.setItem('auth_token', token);
+        });
+      } else {
+        localStorage.removeItem('auth_token');
       }
-      return false;
-    } catch {
-      return false;
-    }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const logout = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setPasscode(null);
-  }, []);
+  const logout = async () => {
+    await signOut(auth);
+    localStorage.removeItem('auth_token');
+  };
 
   return (
     <AuthContext.Provider
       value={{
-        isAuthenticated: passcode !== null,
-        passcode,
-        login,
+        isAuthenticated: !!user,
+        user,
+        loading,
         logout,
       }}
     >
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 }

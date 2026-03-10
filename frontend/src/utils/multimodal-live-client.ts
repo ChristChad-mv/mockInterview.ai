@@ -78,10 +78,10 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
     super();
     const defaultWsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
     url = url || defaultWsUrl;
-    // Append passcode from sessionStorage if available
-    const wsUrl = new URL("ws", url);
-    const passcode = sessionStorage.getItem('mockinterview-passcode');
-    if (passcode) wsUrl.searchParams.set('passcode', passcode);
+    // Append token from localStorage if available
+    const wsUrl = new URL(url);
+    const token = localStorage.getItem('auth_token');
+    if (token) wsUrl.searchParams.set('token', token);
     this.url = wsUrl.href;
     this.userId = userId;
     this.runId = runId || crypto.randomUUID(); // Ensure runId is always a string by providing default
