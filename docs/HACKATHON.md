@@ -122,7 +122,7 @@ Each voice has a **name and personality**. When you select "Kore" as your voice:
 
 ## 🏗️ Architecture
 
-> 📐 For complete Mermaid diagrams and data flow details, see **[ARCHITECTURE.md](../ARCHITECTURE.md)**.
+> 📐 For complete Mermaid diagrams and data flow details, see **[ARCHITECTURE.md](../docs/ARCHITECTURE.md)**.
 
 ### System Overview
 
