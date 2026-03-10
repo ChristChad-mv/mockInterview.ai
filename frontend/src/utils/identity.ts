@@ -3,18 +3,18 @@
  * Handles persistent JudgeID generation and retrieval using localStorage.
  */
 
-const JUDGE_ID_KEY = 'mockinterview-judge-id';
+const SESSION_ID_KEY = 'mockinterview-session-id';
 
 /**
  * Gets the persistent JudgeID for this browser.
  * Generates a new one if it doesn't exist.
  */
-export function getJudgeId(): string {
-  let id = localStorage.getItem(JUDGE_ID_KEY);
+export function getSessionId(): string {
+  let id = localStorage.getItem(SESSION_ID_KEY);
   
   if (!id) {
     id = crypto.randomUUID();
-    localStorage.setItem(JUDGE_ID_KEY, id);
+    localStorage.setItem(SESSION_ID_KEY, id);
   }
   
   return id;
@@ -25,7 +25,7 @@ export function getJudgeId(): string {
  * Ensures it follows naming conventions (lowercase, alphanumeric, etc).
  */
 export function getResourcePrefix(): string {
-  const id = getJudgeId();
+  const id = getSessionId();
   // We use the first 8 chars + some entropy or just the clean ID
   // Gemini store names must start with a letter and contain only letters, numbers, hyphens
   const cleanId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();

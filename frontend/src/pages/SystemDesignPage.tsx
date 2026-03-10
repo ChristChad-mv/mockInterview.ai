@@ -24,7 +24,7 @@ import { fetchAIFeedback } from '../utils/feedback-api';
 import { addRecord } from '../utils/interview-history';
 import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
 import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
-import { getJudgeId } from "../utils/identity";
+import { getSessionId } from "../utils/identity";
 import { Timer } from "../components/interview/Timer";
 
 // WebSocket URL
@@ -563,7 +563,7 @@ You are now in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through high-le
 
 export default function SystemDesignPage() {
   return (
-    <LiveAPIProvider url={defaultUri} userId={getJudgeId()}>
+    <LiveAPIProvider url={defaultUri} userId={getSessionId()}>
       <SystemDesignSession />
     </LiveAPIProvider>
   );

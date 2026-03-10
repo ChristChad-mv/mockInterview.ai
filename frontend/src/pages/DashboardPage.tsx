@@ -224,21 +224,19 @@ export default function DashboardPage() {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('judge_id', config.judgeId || '');
 
     try {
-      // Security: Get passcode from storage (no hardcoded fallback)
-      const passcode = sessionStorage.getItem('mockinterview-passcode') || localStorage.getItem('access_passcode');
+      const token = localStorage.getItem('auth_token');
       
-      if (!passcode) {
-        throw new Error('No access passcode found. Please log in again.');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
       }
 
       const response = await fetch('/api/resume/upload', {
         method: 'POST',
         body: formData,
         headers: {
-          'X-Passcode': passcode,
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -547,10 +545,10 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        {/* Judge ID (Phase 1) */}
+        {/* Session ID */}
         <div className="mt-20 pt-8 border-t border-white/5 flex justify-center">
            <p className="text-[10px] text-gray-700 font-mono tracking-tighter uppercase">
-             Session ID: {config.judgeId}
+             Session ID: {config.sessionId}
            </p>
         </div>
       </div>

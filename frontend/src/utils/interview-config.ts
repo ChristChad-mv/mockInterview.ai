@@ -107,12 +107,12 @@ export interface InterviewConfig {
   resume?: string;
   jobDescription?: string;
   companyName?: string;
-  judgeId?: string;
+  sessionId?: string;
 }
 
 const STORAGE_KEY = 'mockinterview-config';
 
-import { getJudgeId } from './identity';
+import { getSessionId } from './identity';
 
 export function getDefaultConfig(): InterviewConfig {
   return { 
@@ -121,7 +121,7 @@ export function getDefaultConfig(): InterviewConfig {
     style: 'friendly',
     duration: 30,
     candidateName: '',
-    judgeId: getJudgeId()
+    sessionId: getSessionId()
   };
 }
 
@@ -151,8 +151,8 @@ export function buildSessionConfigMessage(config: InterviewConfig): string {
     parts.push(`[CANDIDATE NAME] The candidate's name is "${config.candidateName}". Please greet them personally at the beginning of the interview.`);
   }
 
-  if (config.judgeId) {
-    parts.push(`[USER ID] ${config.judgeId}`);
+  if (config.sessionId) {
+    parts.push(`[USER ID] ${config.sessionId}`);
   }
 
   if (lang && lang.id !== 'en') {

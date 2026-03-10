@@ -15,7 +15,7 @@ import { fetchAIFeedback } from '../utils/feedback-api';
 import { addRecord } from '../utils/interview-history';
 import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
 import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig } from '../utils/interview-config';
-import { getJudgeId } from "../utils/identity";
+import { getSessionId } from "../utils/identity";
 import { Timer } from "../components/interview/Timer";
 import {
   behavioralQuestions,
@@ -636,7 +636,7 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
 
 export default function BehavioralPage() {
   return (
-    <LiveAPIProvider url={defaultUri} userId={getJudgeId()}>
+    <LiveAPIProvider url={defaultUri} userId={getSessionId()}>
       <BehavioralSession />
     </LiveAPIProvider>
   );

@@ -22,7 +22,7 @@ import { fetchAIFeedback } from "../utils/feedback-api";
 import { addRecord } from "../utils/interview-history";
 import { PreInterviewSetup } from '../components/interview/PreInterviewSetup';
 import { type InterviewConfig, buildSessionConfigMessage, getSavedConfig, getDefaultConfig, saveConfig } from '../utils/interview-config';
-import { getJudgeId } from "../utils/identity";
+import { getSessionId } from "../utils/identity";
 import { Timer } from "../components/interview/Timer";
 // WebSocket URL: in production, same host. In dev, connect to backend on :8000.
 const isDevelopment = window.location.port === "3000";
@@ -579,7 +579,7 @@ ${selectedProblem.description}`;
 
 export default function CodingInterviewPage() {
   return (
-    <LiveAPIProvider url={defaultUri} userId={getJudgeId()}>
+    <LiveAPIProvider url={defaultUri} userId={getSessionId()}>
       <InterviewSession />
     </LiveAPIProvider>
   );
