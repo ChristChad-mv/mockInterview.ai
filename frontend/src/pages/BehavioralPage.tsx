@@ -65,7 +65,8 @@ function BehavioralSession() {
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
-  const [durationInMins, setDurationInMins] = useState<number>(getSavedConfig().duration || 30);
+  const [durationInMins, setDurationInMins] = useState<number>(30);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(30 * 60);
 
   const [audioRecorder] = useState(() => new AudioRecorder());
   const { startRecording, stopRecording } = useTabRecorder();
@@ -85,7 +86,7 @@ function BehavioralSession() {
     }
   }, [questionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Timer ──
+  // ── Session Time Log ──
   useEffect(() => {
     if (!sessionStartTime) return;
     const interval = setInterval(() => {
@@ -115,6 +116,7 @@ function BehavioralSession() {
       setInterviewStarted(true);
       await connect(config.voice);
       setDurationInMins(config.duration);
+      setSecondsRemaining(config.duration * 60);
       setSessionStartTime(Date.now());
       setConversationLog([]);
 
@@ -211,6 +213,45 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
     }
   }, [disconnect, audioRecorder, sessionStartTime, selectedQuestion, stopRecording]);
 
+  const handleTimeUp = useCallback(() => {
+    if (connected) {
+      console.log('[Timer] Time is up!');
+      client.send([{ text: `[[LOG]] TIME IS UP. Wrap up the interview immediately and say goodbye.` }]);
+      setTimeout(() => {
+        handleDisconnect();
+      }, 8000);
+    }
+  }, [connected, client, handleDisconnect]);
+
+  const handleAddTime = useCallback(() => {
+    if (connected) {
+      setSecondsRemaining((prev) => prev + 5 * 60);
+      setDurationInMins((prev) => prev + 5);
+      console.log('[Timer] User added 5 minutes');
+      client.send([{ text: `[[LOG]] The candidate has added 5 minutes to the interview. The timer on the screen has updated.` }]);
+    }
+  }, [connected, client]);
+
+  // ── Countdown Timer ──
+  useEffect(() => {
+    if (!connected || !interviewStarted || secondsRemaining <= 0) return;
+
+    const interval = window.setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleTimeUp();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [connected, interviewStarted, handleTimeUp]);
+
   // ── Audio recording ──
   useEffect(() => {
     const onData = (base64: string) => {
@@ -230,23 +271,6 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
     };
   }, [connected, client, isMicActive, audioRecorder]);
 
-  // ── Periodic Time Update to AI ──
-  useEffect(() => {
-    if (!connected || !interviewStarted || !durationInMins) return;
-
-    // Send about 5 updates throughout the session (e.g., every 3 mins for 15 min session)
-    const intervalMs = (durationInMins * 60 * 1000) / 5;
-
-    const interval = setInterval(() => {
-      if (sessionStartTime) {
-        const elapsedS = Math.floor((Date.now() - sessionStartTime) / 1000);
-        const remainingM = Math.max(0, durationInMins - Math.floor(elapsedS / 60));
-        client.send([{ text: `[SYSTEM] Reminder: There are approximately ${remainingM} minutes remaining in this session.` }]);
-      }
-    }, intervalMs);
-
-    return () => clearInterval(interval);
-  }, [connected, interviewStarted, durationInMins, sessionStartTime, client]);
 
   // ── Speaking detection ──
   useEffect(() => {
@@ -386,22 +410,8 @@ You are in BEHAVIORAL INTERVIEW mode. Ask the candidate to answer using the STAR
 
             {interviewStarted && (
                <Timer 
-                initialMinutes={durationInMins} 
-                isActive={connected && !showFeedback} 
-                onAddTime={(newTotalSeconds) => {
-                  if (connected) {
-                    client.send([{ text: `[SYSTEM] The candidate has added 5 minutes to the session. Total time remaining: ${Math.floor(newTotalSeconds / 60)} minutes.` }]);
-                  }
-                }}
-                onTimeUp={() => {
-                  if (connected) {
-                    client.send([{ text: `[SYSTEM] TIME IS UP. Briefly thank the candidate and let them know their feedback is being generated. You have 10 seconds before the session cuts off.` }]);
-                    // Grace period for AI to say goodbye
-                    setTimeout(() => {
-                      handleDisconnect();
-                    }, 10000);
-                  }
-                }}
+                secondsRemaining={secondsRemaining} 
+                onAddTime={handleAddTime}
               />
             )}
 

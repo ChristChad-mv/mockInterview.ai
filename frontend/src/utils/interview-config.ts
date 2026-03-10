@@ -166,13 +166,7 @@ export function buildSessionConfigMessage(config: InterviewConfig): string {
   }
 
   if (config.duration) {
-    parts.push(`[TIME MANAGEMENT] 
-This interview is time-boxed to exactly ${config.duration} minutes. 
-As the interviewer, you are responsible for:
-1. MONITORING TIME: You will receive periodic hidden [SYSTEM] messages indicating the remaining time. 
-2. PACING: Use these updates to pace the conversation. Do not mention the exact system messages, but naturally transition the candidate (e.g., "We have about half the time left, let's look at the implementation").
-3. NO INTERRUPTION: These system messages will not stop your speech. Continue your current thought, then adjust your next turn based on the update.
-4. WRAP-UP: Ensure you finish with a summary before the ${config.duration} minutes are up.`);
+    parts.push(`[SESSION DURATION] This interview is scheduled for ${config.duration} minutes. You can see the remaining time on the candidate's screen. Use it to pace the interview naturally.`);
   }
 
   if (config.companyName) {

@@ -19,12 +19,14 @@ from google.adk.apps import App
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.cloud import logging as google_cloud_logging
+from google.genai import types
 from vertexai.agent_engines import _utils
 from websockets.exceptions import ConnectionClosedError
 
-from .agent import app as adk_app, create_agent
+from .agent import app as adk_app, create_agent, LANGUAGE_MAPPING
 from .app_utils.telemetry import setup_telemetry
 from .app_utils.config import settings
 from .api.v1.router import router as api_router
@@ -86,9 +88,12 @@ class AgentSession:
         self.user_id: str | None = None
         self.session_id: str | None = None
         self.voice_name: str = "Puck"
+        self.language: str = "en"
         self.setup_received = asyncio.Event()
         self.total_prompt_tokens = 0
         self.total_response_tokens = 0
+        self.last_resumption_handle = None
+        self.total_requests = 0
 
     async def receive_from_client(self) -> None:
         """Listens for and processes incoming messages from the WebSocket client.
@@ -106,13 +111,33 @@ class AgentSession:
                         if "setup" in data:
                             self.voice_name = data.get("voice", "Puck")
                             self.user_id = data.get("user_id")
-                            logging.info(f"🎙️ Setup: voice={self.voice_name}, user_id={self.user_id}")
+                            self.language = data.get("language", "en")
+                            logging.info(f"🎙️ Setup: voice={self.voice_name}, language={self.language}, user_id={self.user_id}")
                             self.setup_received.set()
                             continue
+                        self.total_requests += 1
+                        if "text" in data:
+                            txt = data["text"]
+                            if "[LOG]" in txt or "METADATA" in txt:
+                                logging.info(f"⚙️  METADATA: {txt}")
+                            else:
+                                logging.info(f"📤 Turn {self.total_requests}: Client sent text")
+                        elif "blob" in data:
+                            logging.info(f"📤 Turn {self.total_requests}: Client sent audio/video blob")
+                        else:
+                            logging.info(f"📤 Turn {self.total_requests}: Client sent message | keys: {list(data.keys())}")
                         await self.input_queue.put(data)
                 elif "bytes" in message:
+                    self.total_requests += 1
+                    logging.info(f"📤 Turn {self.total_requests}: Client sent audio chunk")
                     await self.input_queue.put({"binary_data": message["bytes"]})
             except ConnectionClosedError:
+                break
+            except RuntimeError as e:
+                # Catch "Cannot call receive once a disconnect message has been received"
+                if "disconnect" in str(e).lower():
+                    break
+                logging.error(f"WebSocket Runtime error: {e}")
                 break
             except Exception as e:
                 logging.error(f"WebSocket receive error: {e}")
@@ -131,15 +156,6 @@ class AgentSession:
         """
         try:
             await self.setup_received.wait()
-            agent = create_agent(self.voice_name, user_id=self.user_id)
-            per_session_app = App(root_agent=agent, name="app")
-            per_session_runner = Runner(
-                app=per_session_app,
-                session_service=session_service,
-                artifact_service=artifact_service,
-                memory_service=memory_service,
-            )
-
             await self.websocket.send_json({"setupComplete": {}})
             
             first_request = await self.input_queue.get()
@@ -149,9 +165,26 @@ class AgentSession:
                 session = await session_service.create_session(app_name=adk_app.name, user_id=self.user_id)
                 self.session_id = session.id
 
+            # Resolve language code and modalities
+            language_code = LANGUAGE_MAPPING.get(self.language, "en-US")
+            response_modalities = ["AUDIO"]
+            first_live_request = first_request.get("live_request")
+
+            # Create the agent + runner
+            agent = create_agent(self.voice_name, user_id=self.user_id, language=self.language)
+            per_session_app = App(root_agent=agent, name="app")
+            per_session_runner = Runner(
+                app=per_session_app,
+                session_service=session_service,
+                artifact_service=artifact_service,
+                memory_service=memory_service,
+            )
+
             live_request_queue = LiveRequestQueue()
-            if "live_request" in first_request:
-                live_request_queue.send(LiveRequest.model_validate(first_request["live_request"]))
+            
+            # Send initial configuration if present
+            if first_live_request:
+                live_request_queue.send(LiveRequest.model_validate(first_live_request))
 
             async def _forward_requests():
                 while True:
@@ -159,38 +192,56 @@ class AgentSession:
                     live_request_queue.send(LiveRequest.model_validate(request))
 
             async def _forward_events():
-                events_async = per_session_runner.run_live(
-                    user_id=self.user_id,
-                    session_id=self.session_id,
-                    live_request_queue=live_request_queue,
-                )
-                async for event in events_async:
-                    event_dict = _utils.dump_event_for_json(event)
-
-                    # Official ADK Usage Tracking (as per documentation)
-                    # The event may contain token counts in snake_case (ADK Python) or camelCase (Raw API)
-                    usage = event_dict.get("usage_metadata") or event_dict.get("usageMetadata")
-                    
-                    if usage:
-                        p_tokens = usage.get("prompt_token_count") or usage.get("promptTokenCount") or 0
-                        r_tokens = usage.get("candidates_token_count") or usage.get("responseTokenCount") or 0
+                try:
+                    events_async = per_session_runner.run_live(
+                        user_id=self.user_id,
+                        session_id=self.session_id,
+                        live_request_queue=live_request_queue,
+                        run_config=RunConfig(
+                            streaming_mode=StreamingMode.BIDI,
+                            response_modalities=response_modalities,
+                            session_resumption=types.SessionResumptionConfig(transparent=True),
+                            context_window_compression=types.ContextWindowCompressionConfig(
+                                trigger_tokens=100000,
+                                sliding_window=types.SlidingWindow(target_tokens=80000)
+                            ),
+                            speech_config=types.SpeechConfig(
+                                voice_config=types.VoiceConfig(
+                                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                        voice_name=self.voice_name,
+                                    )
+                                ),
+                                language_code=language_code,
+                            ),
+                            proactivity=types.ProactivityConfig(proactive_audio=True),
+                            enable_affective_dialog=True,
+                        )
+                    )
+                    async for event in events_async:
+                        event_dict = _utils.dump_event_for_json(event)
+                        await self.websocket.send_json(event_dict)
                         
-                        if p_tokens or r_tokens:
-                            # We keep the latest cumulative count
-                            self.total_prompt_tokens = p_tokens
-                            self.total_response_tokens = r_tokens
-                            logging.info(f"📊 Tokens: Prompt={p_tokens}, Response={r_tokens}")
-
-                    await self.websocket.send_json(event_dict)
+                except Exception as e:
+                    logging.error(f"❌ Fatal agent error: {e}")
+                    raise e
 
             requests_task = asyncio.create_task(_forward_requests())
             try:
                 await _forward_events()
+            except Exception as e:
+                try:
+                    await self.websocket.send_json({"error": str(e)})
+                except Exception:
+                    pass
             finally:
                 requests_task.cancel()
+
         except Exception as e:
-            logging.error(f"Agent session error: {e}")
-            await self.websocket.send_json({"error": str(e)})
+            logging.error(f"Agent session setup error: {e}")
+            try:
+                await self.websocket.send_json({"error": str(e)})
+            except Exception:
+                pass
 
 
 @app.websocket("/ws")
@@ -216,7 +267,8 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         p = session.total_prompt_tokens if session else 0
         r = session.total_response_tokens if session else 0
-        logging.info(f"🎙️ Session disconnected. Usage: {p + r} total tokens (P: {p}, R: {r})")
+        req = session.total_requests if session else 0
+        logging.info(f"🎙️ Session disconnected. Final Usage: {req} total prompts | {p + r} total tokens (P: {p}, R: {r})")
 
 # ── SPA / Frontend Serving ──
 

@@ -10,6 +10,7 @@ interface CodeEditorProps {
   onChange: (value: string | undefined) => void;
   language?: string;
   theme?: string;
+  secondsRemaining?: number;
 }
 
 export interface CodeEditorHandle {
@@ -18,7 +19,7 @@ export interface CodeEditorHandle {
 }
 
 export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
-  ({ code, onChange, language = 'javascript', theme = 'vs-dark' }, ref) => {
+  ({ code, onChange, language = 'javascript', theme = 'vs-dark', secondsRemaining = 0 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const handleEditorDidMount: OnMount = (editor) => {
@@ -46,12 +47,27 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
           // Dark background
           ctx.fillStyle = '#1e1e1e';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Render Timer at the top right if provided
+          if (secondsRemaining > 0) {
+            const mins = Math.floor(secondsRemaining / 60);
+            const secs = secondsRemaining % 60;
+            const timerStr = `Timer: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            ctx.fillStyle = '#ff4b4b'; // Soft red
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(timerStr, canvas.width - 20, 30);
+          }
+
+          // Reset text align for code
+          ctx.textAlign = 'left';
+          
           // Render code as text on canvas
           ctx.fillStyle = '#d4d4d4';
           ctx.font = '13px "JetBrains Mono", monospace';
           const lines = code.split('\n');
           const lineHeight = 19;
-          const paddingTop = 16;
+          const paddingTop = 40; // More padding if timer is present
           const paddingLeft = 60;
           lines.forEach((line, i) => {
             ctx.fillStyle = '#858585';
@@ -65,7 +81,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
           return null;
         }
       },
-    }), [code]);
+    }), [code, secondsRemaining]);
 
     return (
       <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[#1e1e1e]">

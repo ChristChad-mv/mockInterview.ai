@@ -60,12 +60,21 @@ function InterviewSession() {
   const [feedbackData, setFeedbackData] = useState<FeedbackData | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
-  const [durationInMins, setDurationInMins] = useState<number>(getSavedConfig().duration || 30);
+  const [initialSeconds, setInitialSeconds] = useState<number>(30 * 60);
+  const [durationInMins, setDurationInMins] = useState<number>(30);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(30 * 60);
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<CodeEditorHandle>(null);
   const [audioRecorder] = useState(() => new AudioRecorder());
   const visionIntervalRef = useRef<number | null>(null);
+  const isSpeakingRef = useRef(isSpeaking);
   const { startRecording, stopRecording } = useTabRecorder();
+
+  // Sync isSpeaking to ref for use in intervals without triggering re-renders/clears
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking;
+  }, [isSpeaking]);
 
   // ── Sync URL param → problem ──
   useEffect(() => {
@@ -96,17 +105,21 @@ function InterviewSession() {
       setInterviewStarted(true);
       await connect(config.voice);
       setDurationInMins(config.duration);
+      setInitialSeconds(config.duration * 60);
+      setSecondsRemaining(config.duration * 60);
       setSessionStartTime(Date.now());
 
       // 3) Send EVERYTHING the agent needs before it speaks:
       //    config + problem context + first vision frame — all at once
       const configMsg = buildSessionConfigMessage(config);
-      const problemContext = `[CODING INTERVIEW — SESSION START]
-The candidate is working on: "${selectedProblem.title}" (${selectedProblem.difficulty}) using ${language.charAt(0).toUpperCase() + language.slice(1)}.
+      const problemContext = `[SESSION DATA]
+- PROBLEM: "${selectedProblem.title}"
+- DIFFICULTY: ${selectedProblem.difficulty}
+- LANGUAGE: ${language.toUpperCase()}
+- ALLOTTED TIME: ${config.duration} minutes
 
-Description: ${selectedProblem.description}
-
-Greet the candidate, confirm the problem, and ask them to explain their approach before coding.`;
+[PROBLEM DESCRIPTION]
+${selectedProblem.description}`;
 
       const fullContext = [configMsg, problemContext].filter(Boolean).join('\n\n');
       client.send([{ text: fullContext }]);
@@ -175,9 +188,49 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
         setIsGeneratingFeedback(false);
       }
     } else {
+      console.log('No video blob captured, closing interview.');
       setInterviewStarted(false);
     }
-  }, [disconnect, audioRecorder, sessionStartTime, selectedProblem, stopRecording]);
+  }, [disconnect, audioRecorder, sessionStartTime, stopRecording, selectedProblem, addRecord]);
+
+  const handleAddTime = useCallback(() => {
+    if (connected) {
+      setSecondsRemaining((prev) => prev + 5 * 60);
+      setDurationInMins((prev) => prev + 5);
+      console.log('[Timer] User added 5 minutes');
+      client.send([{ text: `[[LOG]] The candidate has added 5 minutes to the interview. The timer on the screen has updated.` }]);
+    }
+  }, [connected, client]);
+
+  const handleTimeUp = useCallback(() => {
+    if (connected) {
+      console.log('[Timer] Time is up!');
+      client.send([{ text: `[[LOG]] TIME IS UP. Wrap up the interview immediately and say goodbye.` }]);
+      setTimeout(() => {
+        handleDisconnect();
+      }, 8000);
+    }
+  }, [connected, client, handleDisconnect]);
+
+  // ── Countdown Timer ──
+  useEffect(() => {
+    if (!connected || !interviewStarted || secondsRemaining <= 0) return;
+
+    const interval = window.setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleTimeUp();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [connected, interviewStarted, handleTimeUp]);
 
   // ── Audio recording → send to backend via client ──
   useEffect(() => {
@@ -197,24 +250,6 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
       audioRecorder.off("data", onData);
     };
   }, [connected, client, isMicActive, audioRecorder]);
-
-  // ── Periodic Time Update to AI ──
-  useEffect(() => {
-    if (!connected || !interviewStarted || !durationInMins) return;
-
-    // Send about 5 updates throughout the session (e.g., every 3 mins for 15 min session)
-    const intervalMs = (durationInMins * 60 * 1000) / 5;
-
-    const interval = setInterval(() => {
-      if (sessionStartTime) {
-        const elapsedS = Math.floor((Date.now() - sessionStartTime) / 1000);
-        const remainingM = Math.max(0, durationInMins - Math.floor(elapsedS / 60));
-        client.send([{ text: `[SYSTEM] Reminder: There are approximately ${remainingM} minutes remaining in this session.` }]);
-      }
-    }, intervalMs);
-
-    return () => clearInterval(interval);
-  }, [connected, interviewStarted, durationInMins, sessionStartTime, client]);
 
   // ── Speaking detection from volume ──
   useEffect(() => {
@@ -239,14 +274,20 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
   useEffect(() => {
     if (connected && isVisionActive) {
       const sendFrame = () => {
+        // Optimization: Skip sending vision frames while the agent is speaking
+        if (isSpeakingRef.current) return;
+
         const snapshot = editorRef.current?.captureSnapshot();
         if (snapshot) {
           const data = snapshot.slice(snapshot.indexOf(",") + 1);
+          console.log('[Vision] Sending editor capture (with manual timer overlay) to AI');
           client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
         }
       };
+      
+      // Initial frame
       sendFrame();
-      visionIntervalRef.current = window.setInterval(sendFrame, 2000);
+      visionIntervalRef.current = window.setInterval(sendFrame, 3000);
     } else {
       if (visionIntervalRef.current) {
         clearInterval(visionIntervalRef.current);
@@ -320,7 +361,7 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
 
   return (
     <>
-    <div className="flex h-screen w-full flex-col bg-[#0f1115] text-white overflow-hidden">
+    <div ref={containerRef} className="flex h-screen w-full flex-col bg-[#0f1115] text-white overflow-hidden">
       {/* Header */}
       <header className="flex h-14 items-center justify-between border-b border-white/10 bg-[#161b22] px-4 shrink-0">
         <div className="flex items-center gap-3">
@@ -405,23 +446,9 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
           )}
 
           {interviewStarted && (
-             <Timer 
-              initialMinutes={durationInMins} 
-              isActive={connected && !showFeedback} 
-              onAddTime={(newTotalSeconds) => {
-                if (connected) {
-                  client.send([{ text: `[SYSTEM] The candidate has added 5 minutes to the session. Total time remaining: ${Math.floor(newTotalSeconds / 60)} minutes.` }]);
-                }
-              }}
-              onTimeUp={() => {
-                if (connected) {
-                  client.send([{ text: `[SYSTEM] TIME IS UP. Briefly thank the candidate and let them know their feedback is being generated. You have 10 seconds before the session cuts off.` }]);
-                  // Grace period for AI to say goodbye
-                  setTimeout(() => {
-                    handleDisconnect();
-                  }, 10000);
-                }
-              }}
+            <Timer 
+              secondsRemaining={secondsRemaining} 
+              onAddTime={handleAddTime}
             />
           )}
         </div>
@@ -439,8 +466,9 @@ Greet the candidate, confirm the problem, and ask them to explain their approach
           <CodeEditor
             ref={editorRef}
             code={code}
-            onChange={(val) => setCode(val || "")}
+            onChange={(val: string | undefined) => setCode(val || "")}
             language={language}
+            secondsRemaining={secondsRemaining}
           />
 
           {/* AI Interviewer Visualizer */}
