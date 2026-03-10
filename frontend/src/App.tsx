@@ -7,6 +7,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 
 // Lazy load heavy pages (tldraw alone is ~2MB)
 const CodingInterviewPage = lazy(() => import("./pages/CodingInterviewPage"));
@@ -28,7 +32,10 @@ function PageLoader() {
 
 /** Redirect to /login if not authenticated */
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) return <PageLoader />;
+  
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -42,9 +49,13 @@ export default function App() {
             {/* Public */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
 
             {/* Protected */}
             <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+            <Route path="/admin" element={<RequireAuth><AdminDashboard /></RequireAuth>} />
             <Route path="/coding/:problemId" element={<RequireAuth><CodingInterviewPage /></RequireAuth>} />
             <Route path="/system-design/:problemId" element={<RequireAuth><SystemDesignPage /></RequireAuth>} />
             <Route path="/behavioral/:questionId" element={<RequireAuth><BehavioralPage /></RequireAuth>} />

@@ -16,6 +16,7 @@ import {
   MessageSquare,
   ChevronDown,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { problems } from "../data/problems";
 import { systemDesignProblems } from "../data/systemDesignProblems";
 import { behavioralQuestions } from "../data/behavioralQuestions";
@@ -82,8 +83,38 @@ const FEATURES = [
 export default function LandingPage() {
   const navigate = useNavigate();
   const [selectedMode, setSelectedMode] = useState("coding");
-
   const activeMode = INTERVIEW_MODES.find((m) => m.id === selectedMode)!;
+
+  const [email, setEmail] = useState("");
+  const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [waitlistMessage, setWaitlistMessage] = useState("");
+
+  const handleJoinWaitlist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+
+    setWaitlistStatus("loading");
+    try {
+      const response = await fetch("/api/waitlist/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        setWaitlistStatus("success");
+        setWaitlistMessage(data.message);
+        setEmail("");
+      } else {
+        setWaitlistStatus("error");
+        setWaitlistMessage(data.detail || "Une erreur est survenue.");
+      }
+    } catch (err) {
+      setWaitlistStatus("error");
+      setWaitlistMessage("Impossible de contacter le serveur.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -104,22 +135,22 @@ export default function LandingPage() {
             MockInterview
             <span className="text-blue-400">.ai</span>
           </span>
+          <div className="ml-3 hidden sm:flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-400">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500"></span>
+            </span>
+            Beta Open
+          </div>
         </div>
         <div className="flex items-center gap-6">
-          <button
+          {/* Dashboard hidden for beta */}
+          {/* <button
             onClick={() => navigate("/dashboard")}
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             Dashboard
-          </button>
-          <a
-            href="https://github.com/ChristChad-mv/mockInterview.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
-          >
-            GitHub
-          </a>
+          </button> */}
         </div>
       </nav>
 
@@ -130,9 +161,9 @@ export default function LandingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-400 mb-8">
-            <Zap size={14} />
-            Powered by Gemini Live + Google ADK
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm font-medium text-blue-400 mb-8">
+            <Zap size={14} className="fill-blue-400" />
+            Introducing MockInterview.ai Beta
           </div>
 
           <h1 className="text-5xl sm:text-7xl font-black tracking-tight leading-[1.1] max-w-4xl mx-auto">
@@ -166,6 +197,11 @@ export default function LandingPage() {
                 size={20}
                 className="group-hover:translate-x-1 transition-transform"
               />
+            </div>
+          </a>
+          <a href="#waiting-list" className="w-full sm:w-auto">
+            <div className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 border border-white/10 px-8 py-4 text-lg font-bold hover:bg-white/10 transition-all cursor-pointer">
+              Join Waitlist
             </div>
           </a>
         </motion.div>
@@ -402,57 +438,63 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Tech Stack ── */}
-      <section className="relative z-10 px-6 py-16 border-t border-white/5">
-        <div className="max-w-4xl mx-auto text-center">
-          <p className="text-xs uppercase tracking-widest text-gray-600 mb-6">
-            Built with
-          </p>
-          <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-500">
-            {[
-              "Gemini Live 2.5 Flash",
-              "Google ADK",
-              "Vertex AI",
-              "React",
-              "Monaco Editor",
-              "tldraw",
-              "FastAPI",
-              "Cloud Run",
-              "AudioWorklet",
-            ].map((tech) => (
-              <span
-                key={tech}
-                className="rounded-full border border-white/5 bg-white/[0.02] px-4 py-1.5"
-              >
-                {tech}
-              </span>
-            ))}
+      {/* ── Waiting List Section ── */}
+      <section id="waiting-list" className="relative z-10 px-6 py-24 bg-blue-600/5 border-t border-white/5">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-400 mb-6">
+            <Brain size={24} />
           </div>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">
+            Get exclusive early access
+          </h2>
+          <p className="text-gray-400 text-lg mb-10 text-balance">
+            We are opening 20 spots for beta testers this week. Join the waitlist to receive your invite and start preparing for your dream job.
+          </p>
+          
+          <form onSubmit={handleJoinWaitlist} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+            <input 
+              type="email" 
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email" 
+              className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+            />
+            <button 
+              disabled={waitlistStatus === "loading"}
+              className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer whitespace-nowrap"
+            >
+              {waitlistStatus === "loading" ? "Joining..." : "Join Now"}
+            </button>
+          </form>
+
+          {waitlistMessage && (
+            <p className={`mt-4 text-sm font-medium ${
+              waitlistStatus === "success" ? "text-green-400" : "text-red-400"
+            }`}>
+              {waitlistMessage}
+            </p>
+          )}
+
+          <p className="mt-4 text-[11px] text-gray-500">
+            By joining, you agree to provide feedback to help us improve the agent.
+          </p>
         </div>
       </section>
 
+
       {/* ── Footer ── */}
-      <footer className="relative z-10 px-6 py-8 border-t border-white/5">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-sm text-gray-600">
-          <span>
-            © 2026 MockInterview.ai — Built for the{" "}
-            <a
-              href="https://googleai.devpost.com/"
-              className="text-blue-500 hover:text-blue-400"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Gemini Live Agent Challenge
-            </a>
-          </span>
-          <a
-            href="https://github.com/ChristChad-mv/mockInterview.ai"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition-colors"
-          >
-            GitHub
-          </a>
+      <footer className="relative z-10 px-6 py-12 border-t border-white/5">
+        <div className="max-w-6xl mx-auto text-center text-sm text-gray-600">
+          <div className="mb-4">
+            <span className="font-bold text-gray-400">MockInterview.ai</span>
+          </div>
+          <p className="mb-2">© 2026 — Master your engineering interviews with AI</p>
+          <div className="flex justify-center gap-6 text-xs mt-6">
+            <a href="#waiting-list" className="hover:text-blue-400 transition-colors">Early Access</a>
+            <Link to="/privacy" className="hover:text-blue-400 transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-blue-400 transition-colors">Terms of Service</Link>
+          </div>
         </div>
       </footer>
     </div>

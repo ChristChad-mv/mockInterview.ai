@@ -7,77 +7,71 @@ import {
   Lock, 
   ArrowRight, 
   AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { 
-  signInWithEmailAndPassword, 
-  signInWithPopup,
-  signOut,
+  createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, googleProvider, db } from '../utils/firebase';
+import { auth, db } from '../utils/firebase';
 
-export default function LoginPage() {
+export default function SignupPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-      
-      if (user.email === adminEmail) {
-        navigate('/admin');
-        return;
-      }
-      
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.message === 'Firebase: Error (auth/invalid-credential).' 
-        ? 'Invalid credentials' 
-        : 'Error during login');
-    } finally {
-      setLoading(false);
+    if (password !== confirmPassword) {
+      setError('The passwords do not match');
+      return;
     }
-  };
 
-  const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
+
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
       const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-      
       // Admin bypass
-      if (user.email === adminEmail) {
+      if (email === adminEmail) {
+        await createUserWithEmailAndPassword(auth, email, password);
         navigate('/admin');
         return;
       }
-      
-      // Others: Check if invited!
+
+      // 1. Check if email is in waitlist AND is invited
       const waitlistRef = collection(db, "waitlist");
-      const q = query(waitlistRef, where("email", "==", user.email), where("status", "==", "invited"));
+      const q = query(waitlistRef, where("email", "==", email), where("status", "==", "invited"));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        await signOut(auth);
-        setError("Sorry, your access is not activated yet. Wait for your invitation email!");
+        // Let's check why: not in waitlist at all, or just hasn't been invited yet?
+        const checkAny = query(waitlistRef, where("email", "==", email));
+        const anySnapshot = await getDocs(checkAny);
+        
+        if (anySnapshot.empty) {
+          setError("Sorry, this email is not on the waitlist. Sign up first!");
+        } else {
+          setError("Your request is pending. You will receive an email as soon as your access is activated!");
+        }
+        setLoading(false);
         return;
       }
 
+      // 2. Create user in Firebase Auth
+      await createUserWithEmailAndPassword(auth, email, password);
       navigate('/dashboard');
     } catch (err: any) {
-      setError('Error during Google login');
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('This email is already used');
+      } else {
+        setError('Error during account creation');
+      }
     } finally {
       setLoading(false);
     }
@@ -94,21 +88,21 @@ export default function LoginPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md px-6 py-12 rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-xl shadow-2xl"
+        className="relative z-10 w-full max-w-md px-6 py-10 rounded-3xl border border-white/5 bg-white/[0.02] backdrop-blur-xl shadow-2xl"
       >
         {/* Logo */}
-        <div className="flex flex-col items-center mb-10">
+        <div className="flex flex-col items-center mb-8">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/25 mb-4">
             <Code2 size={28} />
           </div>
           <h1 className="text-2xl font-black tracking-tight">
-            MockInterview<span className="text-blue-400">.ai</span>
+            Create an account
           </h1>
-          <p className="mt-2 text-sm text-gray-500">Access your preparation space</p>
+          <p className="mt-2 text-sm text-gray-500 text-center">Reserved for waitlist members</p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleEmailLogin} className="space-y-4">
+        <form onSubmit={handleSignup} className="space-y-4">
           <div className="space-y-4">
             <div className="relative">
               <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -116,8 +110,9 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
+                placeholder="Your email (used for the waitlist)"
                 className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3.5 pl-12 pr-4 text-white focus:border-blue-500/50 outline-none transition-all"
+                required
               />
             </div>
             
@@ -129,12 +124,25 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3.5 pl-12 pr-4 text-white focus:border-blue-500/50 outline-none transition-all"
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <CheckCircle2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-3.5 pl-12 pr-4 text-white focus:border-blue-500/50 outline-none transition-all"
+                required
               />
             </div>
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2 text-xs text-red-400">
+            <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-xs text-red-400">
               <AlertCircle size={14} />
               {error}
             </div>
@@ -145,31 +153,13 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-bold hover:bg-blue-500 transition-all disabled:opacity-50"
           >
-            Login
+            {loading ? "Checking..." : "Sign up"}
             <ArrowRight size={18} />
           </button>
         </form>
 
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-          <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0a0a0f] px-2 text-gray-600">Or continue with</span></div>
-        </div>
-
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-3 rounded-xl bg-white text-black py-3.5 font-bold hover:bg-gray-100 transition-all disabled:opacity-50"
-        >
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="h-5 w-5" />
-          Google
-        </button>
-
         <p className="mt-8 text-center text-sm text-gray-500">
-          Don't have an account? <Link to="/signup" className="text-blue-400 hover:underline">Sign up</Link>
-        </p>
-
-        <p className="mt-4 text-center text-[10px] text-gray-700">
-          Beta access is reserved for invited members.
+          Already have an account ? <Link to="/login" className="text-blue-400 hover:underline">Log in</Link>
         </p>
       </motion.div>
     </div>
