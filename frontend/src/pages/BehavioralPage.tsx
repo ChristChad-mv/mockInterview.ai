@@ -227,9 +227,8 @@ You are in BEHAVIORAL INTERVIEW mode. Greet the candidate, read the question, an
       setSecondsRemaining((prev) => prev + 5 * 60);
       setDurationInMins((prev) => prev + 5);
       console.log('[Timer] User added 5 minutes');
-      client.send([{ text: `[[LOG]] The candidate has added 5 minutes to the interview. The timer on the screen has updated.` }]);
     }
-  }, [connected, client]);
+  }, [connected]);
 
   // ── Countdown Timer ──
   useEffect(() => {

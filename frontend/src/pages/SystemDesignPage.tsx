@@ -189,21 +189,19 @@ You are in SYSTEM DESIGN INTERVIEW mode. Guide the candidate through requirement
   const handleTimeUp = useCallback(() => {
     if (connected) {
       console.log('[Timer] Time is up!');
-      client.send([{ text: `[[LOG]] TIME IS UP. Wrap up the interview immediately and say goodbye.` }]);
       setTimeout(() => {
         handleDisconnect();
       }, 8000);
     }
-  }, [connected, client, handleDisconnect]);
+  }, [connected, handleDisconnect]);
 
   const handleAddTime = useCallback(() => {
     if (connected) {
       setSecondsRemaining((prev) => prev + 5 * 60);
       setDurationInMins((prev) => prev + 5);
       console.log('[Timer] User added 5 minutes');
-      client.send([{ text: `[[LOG]] The candidate has added 5 minutes to the interview.` }]);
     }
-  }, [connected, client]);
+  }, [connected]);
 
   // ── Countdown Timer ──
   useEffect(() => {
