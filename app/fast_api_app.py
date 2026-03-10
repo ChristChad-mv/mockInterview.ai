@@ -20,7 +20,7 @@ from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.agents.run_config import RunConfig, StreamingMode
-from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.sessions import DatabaseSessionService
 from google.cloud import logging as google_cloud_logging
 from google.genai import types
 from vertexai.agent_engines import _utils
@@ -65,7 +65,7 @@ logging.basicConfig(level=logging.INFO)
 setup_telemetry()
 
 # ── ADK Services ──
-session_service = InMemorySessionService()
+session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///./sessions.db")
 logs_bucket_name = settings.LOGS_BUCKET_NAME
 artifact_service = (
     GcsArtifactService(bucket_name=logs_bucket_name)
@@ -90,10 +90,6 @@ class AgentSession:
         self.voice_name: str = "Puck"
         self.language: str = "en"
         self.setup_received = asyncio.Event()
-        self.total_prompt_tokens = 0
-        self.total_response_tokens = 0
-        self.last_resumption_handle = None
-        self.total_requests = 0
 
     async def receive_from_client(self) -> None:
         """Listens for and processes incoming messages from the WebSocket client.
@@ -115,21 +111,12 @@ class AgentSession:
                             logging.info(f"🎙️ Setup: voice={self.voice_name}, language={self.language}, user_id={self.user_id}")
                             self.setup_received.set()
                             continue
-                        self.total_requests += 1
                         if "text" in data:
                             txt = data["text"]
                             if "[LOG]" in txt or "METADATA" in txt:
                                 logging.info(f"⚙️  METADATA: {txt}")
-                            else:
-                                logging.info(f"📤 Turn {self.total_requests}: Client sent text")
-                        elif "blob" in data:
-                            logging.info(f"📤 Turn {self.total_requests}: Client sent audio/video blob")
-                        else:
-                            logging.info(f"📤 Turn {self.total_requests}: Client sent message | keys: {list(data.keys())}")
                         await self.input_queue.put(data)
                 elif "bytes" in message:
-                    self.total_requests += 1
-                    logging.info(f"📤 Turn {self.total_requests}: Client sent audio chunk")
                     await self.input_queue.put({"binary_data": message["bytes"]})
             except ConnectionClosedError:
                 break
@@ -265,10 +252,7 @@ async def websocket_endpoint(websocket: WebSocket):
         session = AgentSession(websocket)
         await asyncio.gather(session.receive_from_client(), session.run_agent())
     finally:
-        p = session.total_prompt_tokens if session else 0
-        r = session.total_response_tokens if session else 0
-        req = session.total_requests if session else 0
-        logging.info(f"🎙️ Session disconnected. Final Usage: {req} total prompts | {p + r} total tokens (P: {p}, R: {r})")
+        logging.info(f"🎙️ Session disconnected | user={session.user_id if session else 'unknown'}")
 
 # ── SPA / Frontend Serving ──
 

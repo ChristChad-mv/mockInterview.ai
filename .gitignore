@@ -210,3 +210,4 @@ tests/load_test/.results/*.csv
 
 # A2A Inspector
 tools/a2a-inspector/
+sessions.db
