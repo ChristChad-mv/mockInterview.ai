@@ -461,4 +461,192 @@ function canFinish(numCourses, prerequisites) {
 `,
     },
   },
+  {
+    id: 'product-except-self',
+    title: 'Product of Array Except Self',
+    difficulty: 'Medium',
+    description: `Given an integer array nums, return an array answer such that answer[i] is equal to the product of all the elements of nums except nums[i].
+  
+The algorithm must run in O(n) time and without using the division operation.`,
+    examples: [
+      { input: 'nums = [1,2,3,4]', output: '[24,12,8,6]' },
+      { input: 'nums = [-1,1,0,-3,3]', output: '[0,0,9,0,0]' },
+    ],
+    starterCode: {
+      python: `class Solution:
+    def productExceptSelf(self, nums: list[int]) -> list[int]:
+        # Write your solution here
+        pass
+`,
+      javascript: `/**
+ * @param {number[]} nums
+ * @return {number[]}
+ */
+function productExceptSelf(nums) {
+  
+}
+`,
+      java: `class Solution {
+    public int[] productExceptSelf(int[] nums) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
+  },
+  {
+    id: 'container-with-most-water',
+    title: 'Container With Most Water',
+    difficulty: 'Medium',
+    description: `You are given an integer array height of length n. There are n vertical lines drawn such that the two endpoints of the i-th line are (i, 0) and (i, height[i]).
+  
+Find two lines that together with the x-axis form a container, such that the container contains the most water.
+  
+Return the maximum amount of water a container can store.`,
+    examples: [
+      { input: 'height = [1,8,6,2,5,4,8,3,7]', output: '49' },
+      { input: 'height = [1,1]', output: '1' },
+    ],
+    starterCode: {
+      python: `class Solution:
+    def maxArea(self, height: list[int]) -> int:
+        # Write your solution here
+        pass
+`,
+      javascript: `/**
+ * @param {number[]} height
+ * @return {number}
+ */
+function maxArea(height) {
+  
+}
+`,
+      java: `class Solution {
+    public int maxArea(int[] height) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
+  },
+  {
+    id: 'two-sum-ii',
+    title: 'Two Sum II - Input Array Is Sorted',
+    difficulty: 'Medium',
+    description: `Given a 1-indexed array of integers numbers that is already sorted in non-decreasing order, find two numbers such that they add up to a specific target number.
+  
+Return the indices of the two numbers, index1 and index2, added by one as an integer array [index1, index2] of length 2.`,
+    examples: [
+      { input: 'numbers = [2,7,11,15], target = 9', output: '[1,2]' },
+      { input: 'numbers = [2,3,4], target = 6', output: '[1,3]' },
+    ],
+    starterCode: {
+      python: `class Solution:
+    def twoSum(self, numbers: list[int], target: int) -> list[int]:
+        # Write your solution here
+        pass
+`,
+      javascript: `/**
+ * @param {number[]} numbers
+ * @param {number} target
+ * @return {number[]}
+ */
+function twoSum(numbers, target) {
+  
+}
+`,
+      java: `class Solution {
+    public int[] twoSum(int[] numbers, int target) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
+  },
+  {
+    id: 'encode-decode-strings',
+    title: 'Encode and Decode Strings',
+    difficulty: 'Medium',
+    description: `Design an algorithm to encode a list of strings to a string. The encoded string is then sent over the network and is decoded back to the original list of strings.`,
+    examples: [
+      { input: '["lint","code","love","you"]', output: '["lint","code","love","you"]', explanation: 'After encoding and decoding, the result must be the same' },
+    ],
+    starterCode: {
+      python: `class Codec:
+    def encode(self, strs: list[str]) -> str:
+        """Encodes a list of strings to a single string."""
+        pass
+
+    def decode(self, s: str) -> list[str]:
+        """Decodes a single string to a list of strings."""
+        pass
+`,
+      javascript: `class Codec {
+  /**
+   * @param {string[]} strs
+   * @return {string}
+   */
+  encode(strs) {
+    
+  }
+
+  /**
+   * @param {string} s
+   * @return {string[]}
+   */
+  decode(s) {
+    
+  }
+}
+`,
+      java: `public class Codec {
+    // Encodes a list of strings to a single string.
+    public String encode(List<String> strs) {
+        
+    }
+
+    // Decodes a single string to a list of strings.
+    public List<String> decode(String s) {
+        
+    }
+}
+`,
+    },
+  },
+  {
+    id: 'top-k-frequent-elements',
+    title: 'Top K Frequent Elements',
+    difficulty: 'Medium',
+    description: `Given an integer array nums and an integer k, return the k most frequent elements. You may return the answer in any order.`,
+    examples: [
+      { input: 'nums = [1,1,1,2,2,3], k = 2', output: '[1,2]' },
+      { input: 'nums = [1], k = 1', output: '[1]' },
+    ],
+    starterCode: {
+      python: `class Solution:
+    def topKFrequent(self, nums: list[int], k: int) -> list[int]:
+        # Write your solution here
+        pass
+`,
+      javascript: `/**
+ * @param {number[]} nums
+ * @param {number} k
+ * @return {number[]}
+ */
+function topKFrequent(nums, k) {
+  
+}
+`,
+      java: `class Solution {
+    public int[] topKFrequent(int[] nums, int k) {
+        // Write your solution here
+        
+    }
+}
+`,
+    },
+  },
 ];
