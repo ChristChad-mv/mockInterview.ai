@@ -44,9 +44,3 @@ async def get_entreprise_culture(company_name: str) -> str:
     
     return f"I don't have detailed culture information for '{company_name}'. Please proceed with general high-level behavioral interview best practices (STAR method, leadership, conflict resolution)."
 
-if __name__ == "__main__":
-    # Test
-    print(get_entreprise_culture("Google"))
-    print(get_entreprise_culture("Amazon"))
-    print(get_entreprise_culture("Meta"))
-    print(get_entreprise_culture("unknown"))

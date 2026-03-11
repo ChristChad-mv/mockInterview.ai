@@ -114,23 +114,23 @@ const STORAGE_KEY = 'mockinterview-config';
 
 import { getSessionId } from './identity';
 
-export function getDefaultConfig(): InterviewConfig {
+export function getDefaultConfig(userUid?: string): InterviewConfig {
   return { 
     voice: 'Puck', 
     language: 'en', 
     style: 'friendly',
     duration: 30,
     candidateName: '',
-    sessionId: getSessionId()
+    sessionId: getSessionId(userUid)
   };
 }
 
-export function getSavedConfig(): InterviewConfig {
+export function getSavedConfig(userUid?: string): InterviewConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...getDefaultConfig(), ...JSON.parse(raw) };
+    if (raw) return { ...getDefaultConfig(userUid), ...JSON.parse(raw), sessionId: getSessionId(userUid) };
   } catch { /* ignore */ }
-  return getDefaultConfig();
+  return getDefaultConfig(userUid);
 }
 
 export function saveConfig(config: InterviewConfig): void {

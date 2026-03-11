@@ -17,6 +17,7 @@ const CodingInterviewPage = lazy(() => import("./pages/CodingInterviewPage"));
 const SystemDesignPage = lazy(() => import("./pages/SystemDesignPage"));
 const BehavioralPage = lazy(() => import("./pages/BehavioralPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function PageLoader() {
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/feedback" element={<FeedbackPage />} />
 
             {/* Protected */}
             <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />

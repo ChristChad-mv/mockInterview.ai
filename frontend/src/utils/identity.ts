@@ -9,7 +9,13 @@ const SESSION_ID_KEY = 'mockinterview-session-id';
  * Gets the persistent JudgeID for this browser.
  * Generates a new one if it doesn't exist.
  */
-export function getSessionId(): string {
+/**
+ * Gets the identifying ID for this user/session.
+ * Prioritizes Firebase's UID if logged in, falls back to localStorage UUID if not.
+ */
+export function getSessionId(userUid?: string): string {
+  if (userUid) return userUid;
+  
   let id = localStorage.getItem(SESSION_ID_KEY);
   
   if (!id) {

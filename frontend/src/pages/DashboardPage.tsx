@@ -8,6 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Code2,
   Terminal,
@@ -30,11 +31,13 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  LogOut,
+  HelpCircle,
 } from 'lucide-react';
 import { problems } from '../data/problems';
 import { systemDesignProblems } from '../data/systemDesignProblems';
 import { behavioralQuestions } from '../data/behavioralQuestions';
-import { getHistory, getStats, getBestScore, type InterviewRecord } from '../utils/interview-history';
+import { fetchHistoryFromFirebase, getHistory, getStats, getBestScore, type InterviewRecord } from '../utils/interview-history';
 import { getSavedConfig, saveConfig, type InterviewConfig } from '../utils/interview-config';
 import { FeedbackReport, type FeedbackData } from '../components/feedback/FeedbackReport';
 
@@ -191,24 +194,42 @@ function ProblemCard({
 /* ── Main Dashboard ── */
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { logout, user: authUser } = useAuth();
   const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
-  const stats = useMemo(() => getStats(), []);
-  const history = useMemo(() => getHistory(), []);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackData | null>(null);
-  
-  const [config, setConfig] = useState<InterviewConfig>(getSavedConfig());
-  const [displayName, setDisplayName] = useState(getSavedConfig().candidateName || '');
+  const [config, setConfig] = useState<InterviewConfig>(getSavedConfig(authUser?.uid));
+  const [displayName, setDisplayName] = useState(getSavedConfig(authUser?.uid).candidateName || '');
   const [inputName, setInputName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
-  // Resume state
   const [resumeStatus, setResumeStatus] = useState<'empty' | 'uploading' | 'ready' | 'error'>('empty');
   const [resumeName, setResumeName] = useState<string | null>(null);
+
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  // Load history on mount
+  useEffect(() => {
+    const load = async () => {
+      if (authUser?.uid) {
+        await fetchHistoryFromFirebase();
+        setIsLoadingHistory(false);
+        // Refresh config after user log in
+        const userConfig = getSavedConfig(authUser.uid);
+        setConfig(userConfig);
+        setDisplayName(userConfig.candidateName || '');
+      }
+    };
+    load();
+  }, [authUser]);
+
+  // Recalculate stats when history changes
+  const stats = useMemo(() => getStats(), [isLoadingHistory]);
+  const history = useMemo(() => getHistory(), [isLoadingHistory]);
 
   const handleSaveName = () => {
     if (!inputName.trim()) return;
     setIsSaving(true);
-    const updatedConfig = { ...getSavedConfig(), candidateName: inputName.trim() };
+    const updatedConfig = { ...getSavedConfig(authUser?.uid), candidateName: inputName.trim() };
     saveConfig(updatedConfig);
     setDisplayName(inputName.trim());
     setInputName('');
@@ -313,12 +334,25 @@ export default function DashboardPage() {
             MockInterview<span className="text-blue-400">.ai</span>
           </span>
         </div>
-        <button
-          onClick={() => navigate('/')}
-          className="text-sm text-gray-400 hover:text-white transition-colors"
-        >
-          Landing Page
-        </button>
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => navigate('/feedback')}
+            className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors font-medium border border-blue-500/10 px-3 py-1.5 rounded-lg bg-blue-500/5"
+          >
+            <HelpCircle size={14} />
+            Beta Feedback
+          </button>
+          <button
+            onClick={async () => {
+              await logout();
+              navigate('/login');
+            }}
+            className="flex items-center gap-2 text-sm text-red-500/80 hover:text-red-400 transition-colors bg-red-500/5 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/10"
+          >
+            <LogOut size={14} />
+            Log Out
+          </button>
+        </div>
       </nav>
 
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-10">
@@ -548,7 +582,7 @@ export default function DashboardPage() {
         {/* Session ID */}
         <div className="mt-20 pt-8 border-t border-white/5 flex justify-center">
            <p className="text-[10px] text-gray-700 font-mono tracking-tighter uppercase">
-             Session ID: {config.sessionId}
+             User ID: {authUser?.uid || 'Guest'}
            </p>
         </div>
       </div>

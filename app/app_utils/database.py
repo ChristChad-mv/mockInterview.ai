@@ -35,7 +35,7 @@ class Database:
                 logger.info(f"Firebase initialized successfully for project: {settings.PROJECT_ID}")
             
             self._db = firestore.client()
-            print(f"DEBUG: Firestore client initialized")
+            # DEBUG: Firestore client initialized
         except Exception as e:
             logger.error(f"Failed to initialize Firebase: {e}")
             self._db = None

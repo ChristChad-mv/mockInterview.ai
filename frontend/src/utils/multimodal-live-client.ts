@@ -133,7 +133,6 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
             this.receive(new Blob([JSON.stringify(jsonData)], {type: 'application/json'}));
           } else if (jsonData.status) {
             this.log("server.status", jsonData.status);
-            console.log("Status:", jsonData.status);
           } else if (jsonData.error) {
             this.log("server.error", jsonData.error);
             console.error("Server error:", jsonData.error);
@@ -145,7 +144,7 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
           console.error("Error parsing message:", error);
         }
       } else {
-        console.log("Unhandled message type:", evt);
+        this.log("server.error", "Unhandled message type received");
       }
     });
 
@@ -176,7 +175,6 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
         this._sendDirect(setupMessage);
         ws.removeEventListener("error", onError);
         ws.addEventListener("close", (ev: CloseEvent) => {
-          console.log(ev);
           this.disconnect(ws);
           let reason = ev.reason || "";
           if (reason.toLowerCase().includes("error")) {
@@ -213,7 +211,6 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
   }
   protected async receive(blob: Blob) {
     const response = (await blobToJSON(blob)) as LiveIncomingMessage;
-    console.log("Parsed response:", response);
 
     if (isToolCallMessage(response)) {
       this.log("server.toolCall", response);
@@ -382,7 +379,7 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
       if (typeof (response as any).type === "string" && hmrTypes.includes((response as any).type)) {
         return;
       }
-      console.log("received unmatched message", response);
+      // console.log("received unmatched message", response);
       this.log("received unmatched message", response);
     }
   }
