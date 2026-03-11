@@ -1,12 +1,4 @@
-# --- Stage 1: Build Frontend ---
-FROM node:20-slim AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend ./
-RUN npm run build
-
-# --- Stage 2: Final Image ---
+# --- Final Image ---
 FROM python:3.11-slim
 
 # Install uv for fast dependency management
@@ -22,8 +14,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy application source
 COPY app ./app
 
-# Copy only the built frontend assets from Stage 1
-COPY --from=frontend-builder /app/frontend/build ./frontend/build
+# Copy the pre-built frontend assets from the local machine
+# (Ensure they are built locally with 'npm run build' first)
+COPY frontend/build ./frontend/build
 
 # Metadata and Environment
 ARG COMMIT_SHA=""
