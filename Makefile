@@ -62,7 +62,7 @@ build-frontend-if-needed:
 deploy: build-frontend-if-needed
 	@PROJECT_ID=$$(gcloud config get-value project) && \
 	echo "🚀 Deploying to Project: $$PROJECT_ID" && \
-	gcloud beta run deploy mockinterview-saas \
+	gcloud beta run deploy mockinterview \
 		--source . \
 		--memory "8Gi" \
 		--cpu "4" \
@@ -86,7 +86,7 @@ deploy: build-frontend-if-needed
 		--set-env-vars "USE_VERTEXAI=True" \
 		--set-env-vars "LOGS_BUCKET_NAME=mockinterview-ia-mockinterview-agent-logs" \
 		--set-env-vars "RECORDINGS_BUCKET=mockinterview-ia-recordings" \
-		--set-env-vars "ALLOWED_ORIGINS=https://mockinterview-saas-bg5nrwbmua-uc.a.run.app"
+		--set-env-vars "ALLOWED_ORIGINS=https://mockinterview-105946928985.us-central1.run.app"
 
 # Alias for 'make deploy' for backward compatibility
 backend: deploy
