@@ -13,6 +13,7 @@ const CodingInterviewPage = lazy(() => import("./pages/CodingInterviewPage"));
 const SystemDesignPage = lazy(() => import("./pages/SystemDesignPage"));
 const BehavioralPage = lazy(() => import("./pages/BehavioralPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function PageLoader() {
   return (
@@ -47,6 +48,9 @@ export default function App() {
             <Route path="/coding/:problemId" element={<RequireAuth><CodingInterviewPage /></RequireAuth>} />
             <Route path="/system-design/:problemId" element={<RequireAuth><SystemDesignPage /></RequireAuth>} />
             <Route path="/behavioral/:questionId" element={<RequireAuth><BehavioralPage /></RequireAuth>} />
+            
+            {/* Catch All - 404 */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </AuthProvider>

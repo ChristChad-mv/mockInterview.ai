@@ -64,7 +64,9 @@ deploy: build-frontend-if-needed
 	echo "🚀 Deploying to Project: $$PROJECT_ID" && \
 	gcloud beta run deploy mockinterview-agent \
 		--source . \
-		--memory "4Gi" \
+		--memory "8Gi" \
+		--cpu "4" \
+		--min-instances 1 \
 		--project $$PROJECT_ID \
 		--region "us-central1" \
 		--allow-unauthenticated \
