@@ -161,37 +161,52 @@ class AgentSession:
                     live_request_queue.send(LiveRequest.model_validate(request))
 
             async def _forward_events() -> None:
-                """Forwards events from the agent to the websocket using ADK's native transparency."""
-                try:
-                    # ONE single call to run_live. ADK handles internal reconnections transparently.
-                    events_async = per_session_runner.run_live(
-                        user_id=self.user_id,
-                        session_id=self.session_id,
-                        live_request_queue=live_request_queue,
-                        run_config=RunConfig(
-                            streaming_mode=StreamingMode.BIDI,
-                            response_modalities=["AUDIO"],
-                            # Resumption enabled: ADK manages handles, caching, and reconnects internally.
-                            # Application code does NOT need to manage handles.
-                            session_resumption=types.SessionResumptionConfig(transparent=True),
-                            # Compression extended the session infinitely.
-                            context_window_compression=types.ContextWindowCompressionConfig(
-                                trigger_tokens=15000,
-                                sliding_window=types.SlidingWindow(target_tokens=10000),
-                            ),
+                """Forwards events with an 8-min proactive rotation, using ADK's native transparency."""
+                while True:
+                    start_time = asyncio.get_event_loop().time()
+                    try:
+                        # run_live with rotation and compression. Context is saved to DB.
+                        events_async = per_session_runner.run_live(
+                            user_id=self.user_id,
+                            session_id=self.session_id,
+                            live_request_queue=live_request_queue,
+                            run_config=RunConfig(
+                                streaming_mode=StreamingMode.BIDI,
+                                response_modalities=["AUDIO"],
+                                # Resumption enabled: ADK manages handles, caching, and reconnects internally.
+                                session_resumption=types.SessionResumptionConfig(transparent=True),
+                                # Compression extends the session infinitely.
+                                context_window_compression=types.ContextWindowCompressionConfig(
+                                    trigger_tokens=15000,
+                                    sliding_window=types.SlidingWindow(target_tokens=10000),
+                                ),
+                            )
                         )
-                    )
-                    async for event in events_async:
-                        # Don't send internal ADK resumption updates to the client
-                        if event.live_session_resumption_update:
-                            continue
+                        async for event in events_async:
+                            # Don't send internal ADK resumption updates to the client
+                            if event.live_session_resumption_update:
+                                continue
+                                
+                            event_dict = _utils.dump_event_for_json(event)
+                            await self.websocket.send_json(event_dict)
                             
-                        event_dict = _utils.dump_event_for_json(event)
-                        await self.websocket.send_json(event_dict)
+                            # Proactive rotate at 8 minutes (480s)
+                            if asyncio.get_event_loop().time() - start_time > 480:
+                                logging.info(f"🕒 Proactive rotation at 8 min reached for session {self.session_id}.")
+                                break
                         
-                except Exception as e:
-                    logging.error(f"❌ Fatal agent error: {e}")
-                    raise e
+                        logging.info("🔄 Stream closed, restarting via session_id continuity (history from DB)...")
+                        continue
+
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        if "1011" in error_msg or "1000" in error_msg or "cancelled" in error_msg:
+                            logging.warning(f"⚠️ Reconnecting session... {e}")
+                            await asyncio.sleep(1)
+                            continue
+
+                        logging.error(f"❌ Fatal agent error: {e}")
+                        raise e
 
             requests_task = asyncio.create_task(_forward_requests())
             try:
