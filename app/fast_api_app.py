@@ -8,9 +8,10 @@ import json
 import logging
 import os
 from pathlib import Path
+from collections.abc import Callable
 
 import backoff
-from fastapi import FastAPI, Header, HTTPException, Request, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,7 +21,7 @@ from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.agents.run_config import RunConfig, StreamingMode
-from google.adk.sessions import DatabaseSessionService
+from google.adk.sessions.database_session_service import DatabaseSessionService
 from google.cloud import logging as google_cloud_logging
 from google.genai import types
 from vertexai.agent_engines import _utils
@@ -65,6 +66,7 @@ logging.basicConfig(level=logging.INFO)
 setup_telemetry()
 
 # ── ADK Services ──
+# Change the session service to DatabaseSessionService to support persistence across Cloud Run instances
 session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///./sessions.db")
 logs_bucket_name = settings.LOGS_BUCKET_NAME
 artifact_service = (
@@ -89,15 +91,11 @@ class AgentSession:
         self.session_id: str | None = None
         self.voice_name: str = "Puck"
         self.language: str = "en"
+        self.resumption_handle: str | None = None
         self.setup_received = asyncio.Event()
 
     async def receive_from_client(self) -> None:
-        """Listens for and processes incoming messages from the WebSocket client.
-
-        This method runs in a loop, receiving text or binary data from the client.
-        'setup' messages are used to configure the session (voice, user_id).
-        Other messages are forwarded to the agent's input queue for processing.
-        """
+        """Listens for and processes incoming messages from the WebSocket client."""
         while True:
             try:
                 message = await self.websocket.receive()
@@ -108,20 +106,16 @@ class AgentSession:
                             self.voice_name = data.get("voice", "Puck")
                             self.user_id = data.get("user_id")
                             self.language = data.get("language", "en")
-                            logging.info(f"🎙️ Setup: voice={self.voice_name}, language={self.language}, user_id={self.user_id}")
+                            self.resumption_handle = data.get("resumption_handle")
+                            logging.info(f"🎙️ Setup: voice={self.voice_name}, language={self.language}, user_id={self.user_id}, resumed={bool(self.resumption_handle)}")
                             self.setup_received.set()
                             continue
-                        if "text" in data:
-                            txt = data["text"]
-                            if "[LOG]" in txt or "METADATA" in txt:
-                                logging.info(f"⚙️  METADATA: {txt}")
                         await self.input_queue.put(data)
                 elif "bytes" in message:
                     await self.input_queue.put({"binary_data": message["bytes"]})
             except ConnectionClosedError:
                 break
             except RuntimeError as e:
-                # Catch "Cannot call receive once a disconnect message has been received"
                 if "disconnect" in str(e).lower():
                     break
                 logging.error(f"WebSocket Runtime error: {e}")
@@ -131,16 +125,7 @@ class AgentSession:
                 break
 
     async def run_agent(self) -> None:
-        """Initializes and runs the ADK agent for the current session.
-
-        This method:
-        1. Waits for the 'setup' configuration from the client.
-        2. Creates a dedicated ADK Agent and Runner.
-        3. Establishes a live connection to the Gemini model.
-        4. Manages bidirectional forwarding of requests (client -> model) 
-           and events (model -> client).
-        5. Tracks token usage metadata during the session.
-        """
+        """Initializes and runs the ADK agent for the current session."""
         try:
             await self.setup_received.wait()
             await self.websocket.send_json({"setupComplete": {}})
@@ -152,12 +137,8 @@ class AgentSession:
                 session = await session_service.create_session(app_name=adk_app.name, user_id=self.user_id)
                 self.session_id = session.id
 
-            # Resolve language code and modalities
-            language_code = LANGUAGE_MAPPING.get(self.language, "en-US")
-            response_modalities = ["AUDIO"]
-            first_live_request = first_request.get("live_request")
-
             # Create the agent + runner
+            # speech_config is now handled inside create_agent's Agent definition
             agent = create_agent(self.voice_name, user_id=self.user_id, language=self.language)
             per_session_app = App(root_agent=agent, name="app")
             per_session_runner = Runner(
@@ -170,6 +151,7 @@ class AgentSession:
             live_request_queue = LiveRequestQueue()
             
             # Send initial configuration if present
+            first_live_request = first_request.get("live_request")
             if first_live_request:
                 live_request_queue.send(LiveRequest.model_validate(first_live_request))
 
@@ -178,33 +160,32 @@ class AgentSession:
                     request = await self.input_queue.get()
                     live_request_queue.send(LiveRequest.model_validate(request))
 
-            async def _forward_events():
+            async def _forward_events() -> None:
+                """Forwards events from the agent to the websocket using ADK's native transparency."""
                 try:
+                    # ONE single call to run_live. ADK handles internal reconnections transparently.
                     events_async = per_session_runner.run_live(
                         user_id=self.user_id,
                         session_id=self.session_id,
                         live_request_queue=live_request_queue,
                         run_config=RunConfig(
                             streaming_mode=StreamingMode.BIDI,
-                            response_modalities=response_modalities,
+                            response_modalities=["AUDIO"],
+                            # Resumption enabled: ADK manages handles, caching, and reconnects internally.
+                            # Application code does NOT need to manage handles.
                             session_resumption=types.SessionResumptionConfig(transparent=True),
+                            # Compression extended the session infinitely.
                             context_window_compression=types.ContextWindowCompressionConfig(
-                                trigger_tokens=100000,
-                                sliding_window=types.SlidingWindow(target_tokens=80000)
+                                trigger_tokens=15000,
+                                sliding_window=types.SlidingWindow(target_tokens=10000),
                             ),
-                            speech_config=types.SpeechConfig(
-                                voice_config=types.VoiceConfig(
-                                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                        voice_name=self.voice_name,
-                                    )
-                                ),
-                                language_code=language_code,
-                            ),
-                            proactivity=types.ProactivityConfig(proactive_audio=True),
-                            enable_affective_dialog=True,
                         )
                     )
                     async for event in events_async:
+                        # Don't send internal ADK resumption updates to the client
+                        if event.live_session_resumption_update:
+                            continue
+                            
                         event_dict = _utils.dump_event_for_json(event)
                         await self.websocket.send_json(event_dict)
                         
@@ -231,28 +212,42 @@ class AgentSession:
                 pass
 
 
+def get_connect_and_run_callable(websocket: WebSocket) -> Callable:
+    """Create a callable that handles agent connection with retry logic."""
+
+    async def on_backoff(details: backoff._typing.Details) -> None:
+        await websocket.send_json(
+            {
+                "status": f"Model connection error, retrying in {details['wait']} seconds..."
+            }
+        )
+
+    @backoff.on_exception(
+        backoff.expo, ConnectionClosedError, max_tries=10, on_backoff=on_backoff
+    )
+    async def connect_and_run() -> None:
+        session = AgentSession(websocket)
+        await asyncio.gather(
+            session.receive_from_client(),
+            session.run_agent(),
+        )
+
+    return connect_and_run
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Handles the main real-time interview WebSocket connection.
-
-    This endpoint authenticates the client via a passcode, establishes the
-    WebSocket connection, and manages the AgentSession lifecycle, including
-    cleanup and final token usage logging upon disconnection.
-
-    Args:
-        websocket: The incoming FastAPI WebSocket connection.
-    """
+    """Main WebSocket endpoint with passcode check and retry logic."""
     passcode = websocket.query_params.get("passcode", "")
     if passcode != settings.ACCESS_PASSCODE:
         await websocket.close(code=4001, reason="Invalid passcode")
         return
     await websocket.accept()
-    session = None
+    connect_and_run = get_connect_and_run_callable(websocket)
     try:
-        session = AgentSession(websocket)
-        await asyncio.gather(session.receive_from_client(), session.run_agent())
+        await connect_and_run()
     finally:
-        logging.info(f"🎙️ Session disconnected | user={session.user_id if session else 'unknown'}")
+        logging.info("🎙️ Session disconnected")
 
 # ── SPA / Frontend Serving ──
 

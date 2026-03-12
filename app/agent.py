@@ -50,16 +50,15 @@ LANGUAGE_MAPPING = {
 
 def create_agent(voice_name: str = DEFAULT_VOICE, user_id: str = None, language: str = 'en') -> Agent:
     """Create a new interviewer agent with core model and instructions."""
-    # Select the model based on the platform (Vertex AI vs Gemini AI Studio)
-    # as per ADK documentation for native audio support.
-    model_id = (
-        "gemini-live-2.5-flash-native-audio" 
-        if settings.USE_VERTEXAI 
-        else "gemini-2.5-flash-native-audio-preview-12-2025"
-    )
+    # As per GitHub issue #4140, only gemini-live-* models on Vertex AI 
+    # support session resumption beyond the 10-minute hard limit.
+    model_id = "gemini-live-2.5-flash-native-audio"
 
     # Inject voice name into the system prompt
     instruction = INTERVIEWER_SYSTEM_INSTRUCTION.format(voice_name=voice_name)
+
+    # Resolve language code
+    language_code = LANGUAGE_MAPPING.get(language, "en-US")
 
     return Agent(
         name="mock_interviewer",
@@ -68,7 +67,18 @@ def create_agent(voice_name: str = DEFAULT_VOICE, user_id: str = None, language:
             retry_options=types.HttpRetryOptions(attempts=3),
         ),
         instruction=instruction,
-        # tools=[], # Add tools here when ready
+        generate_content_config=types.GenerateContentConfig(
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_name,
+                    )
+                ),
+                language_code=language_code,
+            ),
+            # Enable proactivity and affective dialog by default for a better experience
+            # We can also add tools=[], here when ready
+        )
     )
 
 
